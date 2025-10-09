@@ -206,7 +206,7 @@ test('Login to Abis, create lead, and create proposal', async ({ page }) => {
 
   // Save lead details to a JSON file
   const leadDetails = { name, email, phone };
-  fs.writeFileSync('lead_details.json', JSON.stringify(leadDetails, null, 2));
+  fs.writeFileSync('abis_execution_details.json', JSON.stringify(leadDetails, null, 2));
     console.log('Lead details saved to JSON file:', leadDetails);
     
   // Step: Click "More" in the dropdown and select "Mark as Sent"
@@ -256,19 +256,19 @@ test('Login to Abis, create lead, and create proposal', async ({ page }) => {
 
   console.log('Clicked Accept, waiting for final state...');
 
-  // Extract proposal number from page content and update lead_details.json
+  // Extract proposal number from page content and update abis_execution_details.json
   const pageContent = await page.content();
   const proposalNumberMatchHtml = pageContent.match(/PRO-\d+/);
   const proposalNumberHtml = proposalNumberMatchHtml ? proposalNumberMatchHtml[0] : '';
   try {
-    const leadDetailsJson = JSON.parse(fs.readFileSync('lead_details.json', 'utf8'));
+    const leadDetailsJson = JSON.parse(fs.readFileSync('abis_execution_details.json', 'utf8'));
     if (proposalNumberHtml) {
       leadDetailsJson.proposalNumber = proposalNumberHtml;
-      fs.writeFileSync('lead_details.json', JSON.stringify(leadDetailsJson, null, 2));
+      fs.writeFileSync('abis_execution_details.json', JSON.stringify(leadDetailsJson, null, 2));
       console.log('Lead details with proposal number saved to JSON file:', leadDetailsJson);
     }
   } catch (err) {
-    console.error('Error updating lead_details.json:', err);
+    console.error('Error updating abis_execution_details.json:', err);
   }
 
   // Go to /leads page
@@ -334,50 +334,66 @@ test('Login to Abis, create lead, and create proposal', async ({ page }) => {
   if (!(await gstInput.count())) gstInput = page.locator("input[name='vat']");
   if (!(await gstInput.count())) gstInput = page.locator("input[name='gst']");
 
-  // Retry filling if not found immediately
+  // Generate realistic PAN and GST numbers
+  function generatePAN() {
+    const letters = () => Array.from({length: 5}, () => String.fromCharCode(65 + Math.floor(Math.random() * 26))).join('');
+    const digits = () => String(Math.floor(1000 + Math.random() * 9000));
+    const lastLetter = String.fromCharCode(65 + Math.floor(Math.random() * 26));
+    return `${letters()}${digits()}${lastLetter}`;
+  }
+  function generateGST(pan) {
+    const stateCode = String(Math.floor(10 + Math.random() * 29)).padStart(2, '0');
+    const suffix = Array.from({length: 3}, () => Math.random() < 0.5 ? String.fromCharCode(65 + Math.floor(Math.random() * 26)) : String(Math.floor(Math.random() * 10))).join('');
+    return `${stateCode}${pan}1${suffix}`;
+  }
+  const panValue = generatePAN();
+  const gstValue = generateGST(panValue);
+
+  // Fill PAN and GST fields
   let panFilled = false, gstFilled = false;
-  let panValue = 'NA', gstValue = 'NA';
   for (let i = 0; i < 3; i++) {
     if (!panFilled && await panInput.count()) {
-      await panInput.first().fill('NA');
+      await panInput.first().fill(panValue);
       panFilled = true;
-      panValue = 'NA';
-      console.log('Entered NA for PAN Number');
+      console.log('Entered PAN Number:', panValue);
     }
     if (!gstFilled && await gstInput.count()) {
-      await gstInput.first().fill('NA');
+      await gstInput.first().fill(gstValue);
       gstFilled = true;
-      gstValue = 'NA';
-      console.log('Entered NA for GST Number');
+      console.log('Entered GST Number:', gstValue);
     }
     if (panFilled && gstFilled) break;
     await page.waitForTimeout(1000);
   }
   if (!panFilled) {
     console.warn('PAN Number field not found');
-    panValue = '';
   }
   if (!gstFilled) {
     console.warn('GST Number field not found');
-    gstValue = '';
   }
 
-  // Update lead_details.json with PAN, GST, and additional lead info
-  let allDetails = {};
-  try {
-    allDetails = JSON.parse(fs.readFileSync('lead_details.json', 'utf8'));
-  } catch (err) {
-    allDetails = {};
-  }
-  allDetails.pan = panValue;
-  allDetails.gst = gstValue;
-  allDetails.company = company;
-  allDetails.address = address;
-  allDetails.city = city;
-  allDetails.state = selectedState;
-  allDetails.zip = zip;
-  fs.writeFileSync('lead_details.json', JSON.stringify(allDetails, null, 2));
-  console.log('Lead details updated with PAN and GST:', allDetails);
+  // Update abis_execution_details.json in nested format
+  let detailsJson = {
+    lead: {
+      name,
+      email,
+      phone,
+      address,
+      city,
+      state: selectedState,
+      zip
+    },
+    proposal: {
+      proposalNumber: proposalNumberHtml || ''
+    },
+    company: {
+      company,
+      pan: panValue,
+      gst: gstValue
+    }
+  };
+  fs.writeFileSync('abis_execution_details.json', JSON.stringify(detailsJson, null, 2));
+  console.log('Lead details saved to JSON file:', detailsJson);
 
   const saveCustomerBtn = page.locator('#custformsubmit');
   await expect(saveCustomerBtn).toBeVisible({ timeout: 15000 });
@@ -387,7 +403,7 @@ test('Login to Abis, create lead, and create proposal', async ({ page }) => {
 
   // Print all lead details at end of execution
   try {
-    const finalDetails = JSON.parse(fs.readFileSync('lead_details.json', 'utf8'));
+    const finalDetails = JSON.parse(fs.readFileSync('abis_execution_details.json', 'utf8'));
     console.log('Final Lead Details:', finalDetails);
   } catch (err) {
     console.error('Error reading final lead details:', err);
