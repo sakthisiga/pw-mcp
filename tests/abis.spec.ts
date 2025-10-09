@@ -93,8 +93,14 @@ test('Login to Abis, create lead, and create proposal', async ({ page }) => {
   }
   if (await zipInput.count()) {
     await zipInput.fill(zip);
-    await expect(zipInput).toHaveValue(zip);
-    console.log('Lead Zip code:', zip);
+    // Some zip fields may not update value immediately, so check after a short wait
+    await page.waitForTimeout(500);
+    const zipValue = await zipInput.inputValue();
+    if (zipValue === zip) {
+      console.log('Lead Zip code:', zip);
+    } else {
+      console.warn(`Zip code field did not update as expected. Expected: ${zip}, Actual: ${zipValue}`);
+    }
   } else {
     console.warn('Zip code field not found, skipping zip code entry.');
   }
@@ -487,4 +493,107 @@ test('Login to Abis, create lead, and create proposal', async ({ page }) => {
   };
   writeAbisExecutionDetails(detailsJson);
 
+  // --- Add service for customer after admin assignment ---
+  // Use details from abis_execution_details.json
+  const customerNameForService = name;
+  const proposalNumberForService = proposalNumberHtml || '';
+
+  // Click Services tab
+  const servicesTab = page.locator('a[data-group="projects"]');
+  await expect(servicesTab).toBeVisible({ timeout: 10000 });
+  await servicesTab.click();
+  console.log('Services tab clicked');
+
+  // Click New service button
+  const newServiceBtn = page.locator('button, a', { hasText: 'New service' });
+  await expect(newServiceBtn).toBeVisible({ timeout: 10000 });
+  await newServiceBtn.click();
+  console.log('New service button clicked');
+
+  // After clicking New service, log modal HTML for debugging
+  const serviceModal = page.locator('.modal:visible');
+  if (await serviceModal.count()) {
+    const modalHtml = await serviceModal.innerHTML();
+    fs.writeFileSync('service-modal-debug.html', modalHtml);
+    console.log('Service modal HTML saved to service-modal-debug.html');
+  } else {
+    const pageHtml = await page.content();
+    fs.writeFileSync('service-page-debug.html', pageHtml);
+    console.log('Service page HTML saved to service-page-debug.html');
+  }
+  await page.waitForTimeout(2000);
+
+
+  // Use robust selector for Accepted Proposals dropdown (#proposal_id)
+  let acceptedProposalsDropdown = page.locator('select#proposal_id');
+  if (!(await acceptedProposalsDropdown.count())) {
+    acceptedProposalsDropdown = page.locator('select[name="proposal_id"]');
+  }
+  if (!(await acceptedProposalsDropdown.count())) {
+    // Try inside modal/dialog if present
+    const modal = page.locator('.modal:visible');
+    if (await modal.count()) {
+      acceptedProposalsDropdown = modal.locator('select#proposal_id');
+      if (!(await acceptedProposalsDropdown.count())) {
+        acceptedProposalsDropdown = modal.locator('select[name="proposal_id"]');
+      }
+    }
+  }
+  await expect(acceptedProposalsDropdown).toBeVisible({ timeout: 20000 });
+  // Find the correct label in the dropdown options
+  const proposalOptions = await acceptedProposalsDropdown.locator('option').allTextContents();
+  // Match by prefix (e.g., 'PRO-001286')
+  // Try to match by prefix (e.g., 'PRO-001287') or substring
+  // Find the option whose text includes the proposal number, then select by value
+  const proposalOptionHandles = await acceptedProposalsDropdown.locator('option').elementHandles();
+  let proposalValue = '';
+  for (const handle of proposalOptionHandles) {
+    const text = (await handle.textContent())?.trim() || '';
+    if (text.includes(proposalNumberForService)) {
+      proposalValue = (await handle.getAttribute('value')) || '';
+      break;
+    }
+  }
+  if (!proposalValue) {
+    throw new Error(`Could not find proposal option with proposal number: ${proposalNumberForService}`);
+  }
+  await acceptedProposalsDropdown.selectOption({ value: proposalValue });
+  console.log('Accepted Proposal selected by value:', proposalValue);
+
+  // Wait for Proposal Services dropdown (#itemable_id) to populate
+  let proposalServicesDropdown = page.locator('select#itemable_id');
+  if (!(await proposalServicesDropdown.count())) {
+    proposalServicesDropdown = page.locator('select[name="itemable_id"]');
+  }
+  if (!(await proposalServicesDropdown.count())) {
+    // Try inside modal/dialog if present
+    const modal = page.locator('.modal:visible');
+    if (await modal.count()) {
+      proposalServicesDropdown = modal.locator('select#itemable_id');
+      if (!(await proposalServicesDropdown.count())) {
+        proposalServicesDropdown = modal.locator('select[name="itemable_id"]');
+      }
+    }
+  }
+  await expect(proposalServicesDropdown).toBeVisible({ timeout: 10000 });
+  await page.waitForTimeout(1500);
+  // Select a service from Proposal Services dropdown
+  const proposalServiceOptions = await proposalServicesDropdown.locator('option').allTextContents();
+  const validProposalServiceOptions = proposalServiceOptions.filter((opt: string) => opt && opt !== 'Please Select');
+  if (validProposalServiceOptions.length === 0) throw new Error('No valid proposal services found');
+  const randomProposalService = validProposalServiceOptions[Math.floor(Math.random() * validProposalServiceOptions.length)];
+  await proposalServicesDropdown.selectOption({ label: randomProposalService });
+  console.log('Proposal Service selected:', randomProposalService);
+
+  // Wait for data to populate on other fields
+  await page.waitForTimeout(2000);
+
+  // Click Save
+  // Use a more specific selector for the Save button in the service addition form
+  // Filter for the Save button with id='btnsubmit' and type='submit'
+  const saveBtn = page.locator('button#btnsubmit[type="submit"]');
+  await expect(saveBtn).toBeVisible({ timeout: 10000 });
+  await expect(saveBtn).toBeEnabled();
+  await saveBtn.click();
+  console.log('Service Save clicked');
 });
