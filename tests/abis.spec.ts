@@ -219,4 +219,51 @@ test('Login to Abis, create lead, and create proposal', async ({ page }) => {
     console.error('Error updating lead_details.json:', err);
   }
 
+  // Go to /leads page
+  const leadName = name;
+  await page.goto(`${APP_BASE_URL}/leads`);
+  // Find the datatable search box inside the table header (try multiple selectors, exclude checkboxes)
+  let tableSearchInput = page.locator('table thead input[type="search"]');
+  if (!(await tableSearchInput.count())) {
+    tableSearchInput = page.locator('table thead input[placeholder*="search" i]');
+  }
+  if (!(await tableSearchInput.count())) {
+    tableSearchInput = page.locator('table thead input:not([type="checkbox"]):not([type="button"]):not([type="submit"])');
+  }
+  if (!(await tableSearchInput.count())) {
+    tableSearchInput = page.locator('input[placeholder*="search" i]');
+  }
+  if (!(await tableSearchInput.count())) {
+    throw new Error('Could not find datatable search input');
+  }
+  // If multiple search inputs found, use the first one
+  const searchInput = tableSearchInput.first();
+  await expect(searchInput).toBeVisible();
+  await searchInput.fill(leadName);
+  await page.waitForTimeout(2000); // Wait for search results to update
+
+  // Click the hyperlink of the lead name in the table to open the lead modal
+  const leadLink = page.locator(`a:has-text("${leadName}")`);
+  await expect(leadLink).toBeVisible({ timeout: 10000 });
+  await leadLink.click();
+  // Wait for popup/modal to appear
+  const leadModal = page.locator('#lead-modal');
+  await expect(leadModal).toBeVisible({ timeout: 10000 });
+
+  // Wait for modal content to be populated before clicking Convert to Customer
+  const modalHeading = leadModal.locator('h4, h3, h2, h1').first();
+  await expect(modalHeading).toBeVisible({ timeout: 10000 });
+  // Click the "Convert to customer" <a> tag
+  const convertLink = leadModal.locator('a:has-text("Convert to customer")');
+  await expect(convertLink).toBeVisible({ timeout: 10000 });
+  await convertLink.click();
+  console.log('Clicked Convert to customer for lead:', leadName);
+
+  // Wait for the Save button with id 'custformsubmit' to be visible and click it
+  const saveCustomerBtn = page.locator('#custformsubmit');
+  await expect(saveCustomerBtn).toBeVisible({ timeout: 15000 });
+  await expect(saveCustomerBtn).toBeEnabled();
+  await saveCustomerBtn.click();
+  console.log('Clicked Save after Convert to customer');
+
 });
