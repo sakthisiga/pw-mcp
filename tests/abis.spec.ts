@@ -130,6 +130,8 @@ test('Login to Abis, create lead, and create proposal', async ({ page }) => {
   const companyOptions = await companyDropdown.locator('option').allTextContents();
   const companyIndices = companyOptions.map((_, i) => i).filter(i => i > 0);
   const randomCompanyIndex = companyIndices[Math.floor(Math.random() * companyIndices.length)];
+    // Capture selected services for JSON output
+    // (moved to after both services are assigned)
   await companyDropdown.selectOption({ index: randomCompanyIndex });
   const selectedCompany = await companyDropdown.locator('option:checked').textContent();
   console.log('Randomly selected company dropdown option:', selectedCompany);
@@ -194,6 +196,15 @@ test('Login to Abis, create lead, and create proposal', async ({ page }) => {
     console.warn('Not enough services to add a second distinct service.');
   }
 
+  // Capture selected services for JSON output (after both are assigned)
+  let selectedServices = [];
+  if (selectedService && selectedService !== 'Choose Service') {
+    selectedServices.push({ name: selectedService });
+  }
+  if (secondService && secondService !== 'Choose Service' && secondService !== selectedService) {
+    selectedServices.push({ name: secondService });
+  }
+
   // Click the Save button
   const proposalSaveBtn = page.getByRole('button', { name: /Save$/i });
   await expect(proposalSaveBtn).toBeVisible();
@@ -203,6 +214,41 @@ test('Login to Abis, create lead, and create proposal', async ({ page }) => {
   // Logging and screenshots at key steps
 
   console.log('Proposal saved, verifying status...');
+
+  // Wait for proposal table to be visible before extracting service details
+  // Try multiple selectors and columns for robustness
+  let serviceDetails = [];
+  let foundRows = false;
+  const possibleTableSelectors = [
+    'table:has-text("Service")', // table containing 'Service' header
+    'table', // any table
+    '[role="table"]', // ARIA role table
+  ];
+  for (const tableSelector of possibleTableSelectors) {
+    const proposalTable = page.locator(tableSelector);
+    if (await proposalTable.count() && await proposalTable.isVisible()) {
+      const serviceTableRows = await proposalTable.locator('tr').all();
+      for (const row of serviceTableRows) {
+        // Try multiple columns for service name
+        for (let col = 0; col < 5; col++) {
+          try {
+            const cell = row.locator('td').nth(col);
+            if (await cell.count()) {
+              const text = await cell.textContent();
+              if (text && text.trim() && text.toLowerCase().includes('service')) continue; // skip header
+              // Heuristic: skip empty, header, or numeric-only cells
+              if (text && text.trim().length > 2 && /[a-zA-Z]/.test(text)) {
+                serviceDetails.push({ name: text.trim() });
+                foundRows = true;
+                break;
+              }
+            }
+          } catch (err) { continue; }
+        }
+      }
+      if (foundRows) break;
+    }
+  }
 
   // Save lead details to a JSON file
   const leadDetails = { name, email, phone };
@@ -325,26 +371,36 @@ test('Login to Abis, create lead, and create proposal', async ({ page }) => {
   await expect(convertModal).toBeVisible({ timeout: 10000 });
 
   // Try multiple selector strategies for PAN and GST fields
+        services: selectedServices
   let panInput = convertModal.locator("input[name='pan_num']");
-  let gstInput = convertModal.locator("input[name='vat']");
   if (!(await panInput.count())) panInput = convertModal.locator("#pan_num");
   if (!(await panInput.count())) panInput = page.locator("input[name='pan_num']");
   if (!(await panInput.count())) panInput = page.locator("#pan_num");
+  let gstInput = convertModal.locator("input[name='vat']");
   if (!(await gstInput.count())) gstInput = convertModal.locator("input[name='gst']");
   if (!(await gstInput.count())) gstInput = page.locator("input[name='vat']");
   if (!(await gstInput.count())) gstInput = page.locator("input[name='gst']");
 
   // Generate realistic PAN and GST numbers
-  function generatePAN() {
+  function generatePAN(): string {
     const letters = () => Array.from({length: 5}, () => String.fromCharCode(65 + Math.floor(Math.random() * 26))).join('');
     const digits = () => String(Math.floor(1000 + Math.random() * 9000));
     const lastLetter = String.fromCharCode(65 + Math.floor(Math.random() * 26));
     return `${letters()}${digits()}${lastLetter}`;
   }
-  function generateGST(pan) {
-    const stateCode = String(Math.floor(10 + Math.random() * 29)).padStart(2, '0');
-    const suffix = Array.from({length: 3}, () => Math.random() < 0.5 ? String.fromCharCode(65 + Math.floor(Math.random() * 26)) : String(Math.floor(Math.random() * 10))).join('');
-    return `${stateCode}${pan}1${suffix}`;
+  function generateGST(pan: string): string {
+    // GST format: 2 digits (state code) + PAN (10 chars) + 1 entity code + Z + 1 checksum (alphanumeric)
+    // Example: 27ABCDE1234F1Z5
+    const stateCode = String(Math.floor(1 + Math.random() * 35)).padStart(2, '0'); // 01-35
+    // PAN should be 5 letters + 4 digits + 1 letter
+    let panPart = pan;
+    if (!/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(pan)) {
+      panPart = 'ABCDE1234F';
+    }
+    const entityCode = '1';
+    const defaultZ = 'Z';
+    const checksum = Math.random() < 0.5 ? String.fromCharCode(65 + Math.floor(Math.random() * 26)) : String(Math.floor(Math.random() * 10));
+    return `${stateCode}${panPart}${entityCode}${defaultZ}${checksum}`;
   }
   const panValue = generatePAN();
   const gstValue = generateGST(panValue);
@@ -352,12 +408,12 @@ test('Login to Abis, create lead, and create proposal', async ({ page }) => {
   // Fill PAN and GST fields
   let panFilled = false, gstFilled = false;
   for (let i = 0; i < 3; i++) {
-    if (!panFilled && await panInput.count()) {
+    if (!panFilled && panInput && await panInput.count()) {
       await panInput.first().fill(panValue);
       panFilled = true;
       console.log('Entered PAN Number:', panValue);
     }
-    if (!gstFilled && await gstInput.count()) {
+    if (!gstFilled && gstInput && await gstInput.count()) {
       await gstInput.first().fill(gstValue);
       gstFilled = true;
       console.log('Entered GST Number:', gstValue);
@@ -384,7 +440,8 @@ test('Login to Abis, create lead, and create proposal', async ({ page }) => {
       zip
     },
     proposal: {
-      proposalNumber: proposalNumberHtml || ''
+      proposalNumber: proposalNumberHtml || '',
+      services: selectedServices
     },
     company: {
       company,
