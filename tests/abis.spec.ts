@@ -591,9 +591,56 @@ test('Login to Abis, create lead, and create proposal', async ({ page }) => {
   // Click Save
   // Use a more specific selector for the Save button in the service addition form
   // Filter for the Save button with id='btnsubmit' and type='submit'
+  // Set a default deadline if the input is empty before saving
+  const deadlineInputBefore = page.locator('input#deadline');
+  let deadlineBefore = '';
+  if (await deadlineInputBefore.count()) {
+    deadlineBefore = await deadlineInputBefore.inputValue();
+    if (!deadlineBefore) {
+      // Set deadline to 7 days from today
+      const today = new Date();
+      const deadlineDate = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+      const pad = (n: number) => n.toString().padStart(2, '0');
+      const deadlineStr = `${pad(deadlineDate.getDate())}-${pad(deadlineDate.getMonth() + 1)}-${deadlineDate.getFullYear()}`;
+      await deadlineInputBefore.fill(deadlineStr);
+      console.log('Default deadline set:', deadlineStr);
+    }
+  }
   const saveBtn = page.locator('button#btnsubmit[type="submit"]');
   await expect(saveBtn).toBeVisible({ timeout: 10000 });
   await expect(saveBtn).toBeEnabled();
   await saveBtn.click();
   console.log('Service Save clicked');
+
+  // After saving, capture service number and deadline from the resulting page
+  await page.waitForTimeout(2000);
+  // Extract service number from the URL if possible
+  let serviceNumber = '';
+  let deadline = '';
+  const url = page.url();
+  const serviceIdMatch = url.match(/\/projects\/view\/(\d+)/);
+  if (serviceIdMatch) {
+    serviceNumber = serviceIdMatch[1];
+  }
+  // Extract deadline from the deadline input field
+  const deadlineInput = page.locator('input#deadline');
+  if (await deadlineInput.count()) {
+    deadline = await deadlineInput.inputValue();
+    if (!deadline) {
+      // Fallback to the value set before Save
+      deadline = deadlineBefore;
+    }
+  }
+  // Update abis_execution_details.json
+  try {
+    const detailsJson = readAbisExecutionDetails();
+    detailsJson.service = {
+      serviceNumber,
+      deadline
+    };
+    writeAbisExecutionDetails(detailsJson);
+    console.log('Service details updated in JSON:', detailsJson.service);
+  } catch (err) {
+    console.error('Error updating service details in abis_execution_details.json:', err);
+  }
 });
