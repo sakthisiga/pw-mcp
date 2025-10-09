@@ -15,7 +15,7 @@ function randomString(length: number) {
   return Math.random().toString(36).substring(2, 2 + length);
 }
 
-test('Login to Abis, create lead, and create proposal', async ({ page }) => {
+test('ABIS Sanity', async ({ page }) => {
   test.setTimeout(90000);
   // Login
   await page.goto(APP_BASE_URL!);
@@ -335,7 +335,9 @@ test('Login to Abis, create lead, and create proposal', async ({ page }) => {
   await convertLink.click();
   console.log('Clicked Convert to customer for lead:', leadName);
 
-  // Pause and take screenshot for debugging modal fields
+  // Wait for the page to fully load before taking screenshot for debugging modal fields
+  await page.waitForLoadState('networkidle');
+  await page.waitForTimeout(1000); // Extra wait for UI updates
   await page.screenshot({ path: 'convert-to-customer-modal.png', fullPage: true });
   // Removed pause for normal test execution
 
@@ -643,4 +645,118 @@ test('Login to Abis, create lead, and create proposal', async ({ page }) => {
   } catch (err) {
     console.error('Error updating service details in abis_execution_details.json:', err);
   }
+
+  // --- Workflow: Create new task after service creation ---
+  // Assumes service creation and navigation to service page is complete
+  await page.waitForTimeout(2000);
+  // Click "New Task" button
+  const newTaskBtn = page.locator('button, a', { hasText: 'New Task' });
+  await expect(newTaskBtn).toBeVisible({ timeout: 10000 });
+  await newTaskBtn.click();
+  console.log('New Task button clicked');
+
+  // Wait for popup/modal to appear
+  const taskModal = page.locator('.modal:visible');
+  await expect(taskModal).toBeVisible({ timeout: 10000 });
+  console.log('Task modal opened');
+
+  // Select the "Subject" input and enter the text "Payment Collection"
+  const subjectInput = taskModal.locator('input#subject, input[name="name"], input[placeholder*="Subject"]').first();
+  await expect(subjectInput).toBeVisible({ timeout: 10000 });
+  await subjectInput.click();
+  await subjectInput.fill('Payment Collection');
+  console.log('Subject set to Payment Collection');
+
+  // Select tomorrow's date in Due Date
+  const dueDateInput = taskModal.locator('input#duedate, input[name="duedate"], input[placeholder*="Due Date"]');
+  await expect(dueDateInput).toBeVisible({ timeout: 10000 });
+  const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  const tomorrowStr = `${pad(tomorrow.getDate())}-${pad(tomorrow.getMonth() + 1)}-${tomorrow.getFullYear()}`;
+  await dueDateInput.fill(tomorrowStr);
+  console.log('Due Date set:', tomorrowStr);
+
+  // Click Save in modal
+  const saveTaskBtn = taskModal.locator('button, a', { hasText: 'Save' });
+  await expect(saveTaskBtn).toBeVisible({ timeout: 10000 });
+  await saveTaskBtn.click();
+  console.log('Task Save clicked');
+
+  // Wait for post-save popup/modal to appear
+  await page.waitForTimeout(2000);
+  const postSaveModal = page.locator('.modal:visible');
+  await expect(postSaveModal).toBeVisible({ timeout: 10000 });
+  console.log('Post-save modal opened');
+
+  // Click "Status" and select "Mark as In Progress"
+  let statusSet = false;
+  // Try select#status first
+  const statusDropdown = postSaveModal.locator('select#status');
+  if (await statusDropdown.count() && await statusDropdown.isVisible()) {
+    await statusDropdown.selectOption({ label: 'In Progress' });
+    statusSet = true;
+    console.log('Task status set to In Progress via select');
+  } else {
+    // Try button with text 'Status' or 'In Progress'
+    const statusButton = postSaveModal.getByText('Status', { exact: false });
+    if (await statusButton.count() && await statusButton.isVisible()) {
+      await statusButton.click();
+      const inProgressOption = postSaveModal.getByText('In Progress', { exact: false }).first();
+      if (await inProgressOption.count() && await inProgressOption.isVisible()) {
+        await inProgressOption.click();
+        statusSet = true;
+        console.log('Task status set to In Progress via button');
+      }
+    } else {
+      // Try any element with aria-label containing 'Status' or 'In Progress'
+      const statusAria = postSaveModal.locator('[aria-label*="Status"], [aria-label*="In Progress"]');
+      if (await statusAria.count() && await statusAria.isVisible()) {
+        await statusAria.click();
+        const inProgressOption = postSaveModal.getByText('In Progress', { exact: false });
+        if (await inProgressOption.count() && await inProgressOption.isVisible()) {
+          await inProgressOption.click();
+          statusSet = true;
+          console.log('Task status set to In Progress via aria-label');
+        }
+      } else {
+        // Try direct text selector for 'In Progress'
+        const inProgressDirect = postSaveModal.getByText('In Progress', { exact: false });
+        if (await inProgressDirect.count() && await inProgressDirect.isVisible()) {
+          await inProgressDirect.click();
+          statusSet = true;
+          console.log('Task status set to In Progress via direct text');
+        }
+      }
+    }
+  }
+  if (!statusSet) {
+    // Log modal HTML for debugging
+    const modalHtml = await postSaveModal.innerHTML();
+    fs.writeFileSync('task-status-modal-debug.html', modalHtml);
+    console.warn('Could not find status selector for task modal. Modal HTML saved to task-status-modal-debug.html');
+  }
+  // ...existing code...
+
+  // Close the modal (try clicking close button or X)
+  const closeBtn = postSaveModal.locator('button, a', { hasText: 'Close' });
+  if (await closeBtn.count()) {
+    await closeBtn.click();
+    console.log('Task modal closed');
+  } else {
+    // Try clicking X button
+    const xBtn = postSaveModal.locator('button.close, .modal-header .close');
+    if (await xBtn.count()) {
+      await xBtn.click();
+      console.log('Task modal closed via X');
+    } else {
+      console.warn('Could not find close button for task modal');
+    }
+  }
+
+  // Click "Tasks" tab in the service page (use role=tab and data-group)
+  const tasksTab = page.locator('a[role="tab"][data-group="project_tasks"]');
+  await expect(tasksTab).toBeVisible({ timeout: 10000 });
+  await tasksTab.click();
+  await page.waitForTimeout(3000);
+  console.log('Tasks tab clicked in service page');
 });
