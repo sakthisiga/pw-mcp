@@ -19,9 +19,15 @@ jobs:
       run: npx playwright install --with-deps
     - name: Create .env file from GitHub secrets
       run: |
-        echo "APP_BASE_URL=${{ secrets.APP_BASE_URL }}" >> .env
-        echo "E2E_USER=${{ secrets.E2E_USER }}" >> .env
-        echo "E2E_PASS=${{ secrets.E2E_PASS }}" >> .env
+        cat <<EOF > .env
+        APP_BASE_URL=${APP_BASE_URL}
+        DB_USER=${DB_USER}
+        DB_PASS=${DB_PASS}
+        EOF
+      env:
+        APP_BASE_URL: ${{ secrets.E2E_BASE_URL }}
+        DB_USER: ${{ secrets.E2E_USER }}
+        DB_PASS: ${{ secrets.E2E_PASS }}
     - name: Run Playwright tests
       run: npx playwright test tests/abis.spec.ts --reporter=html
     - uses: actions/upload-artifact@v4
