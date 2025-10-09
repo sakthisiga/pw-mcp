@@ -116,6 +116,32 @@ test('Login to Abis, create lead, and create proposal', async ({ page }) => {
   await expect(addItemBtn).toBeVisible();
   await addItemBtn.click();
 
+  // Add a second service to the proposal
+  // Filter out the first selected service and 'Choose Service'
+  const remainingServiceIndices = serviceIndices.filter(i => i !== randomServiceIndex);
+  let secondService = '';
+  let secondServiceIndex;
+  if (remainingServiceIndices.length > 0) {
+    let attempts = 0;
+    do {
+      secondServiceIndex = remainingServiceIndices[Math.floor(Math.random() * remainingServiceIndices.length)];
+      await serviceDropdown.selectOption({ index: secondServiceIndex });
+      const secondServiceRaw = await serviceDropdown.locator('option:checked').textContent();
+      secondService = secondServiceRaw ? secondServiceRaw : '';
+      attempts++;
+    } while ((secondService === 'Choose Service' || secondService === selectedService) && attempts < 10);
+    if (secondService !== 'Choose Service' && secondService !== selectedService) {
+      console.log('Randomly selected second service dropdown option:', secondService);
+      await page.waitForTimeout(2000);
+      await addItemBtn.click();
+      console.log(`Second service added: ${secondService}`);
+    } else {
+      console.warn('Could not find a distinct second service.');
+    }
+  } else {
+    console.warn('Not enough services to add a second distinct service.');
+  }
+
   // Click the Save button
   const proposalSaveBtn = page.getByRole('button', { name: /Save$/i });
   await expect(proposalSaveBtn).toBeVisible();
@@ -142,12 +168,36 @@ test('Login to Abis, create lead, and create proposal', async ({ page }) => {
   const sentStatusLabel = await page.locator('span.proposal-status-4,label-info:has-text("Sent")');
   await expect(sentStatusLabel).toBeVisible();
 
-  // Step: Click the "Accept" button in the page.
-  const acceptButton = page.getByRole('button', { name: /Accept/i });
-  await expect(acceptButton).toBeVisible();
-  await expect(acceptButton).toBeEnabled();
-  await acceptButton.click();
-    console.log('Clicked Accept button, waiting for page to load...');
+  // Step: Accept one service and decline another randomly
+  // Find all service rows (assuming each row has Accept/Decline buttons)
+  const serviceRows = await page.locator('tr').all();
+  // Filter rows that have Accept and Decline buttons
+  const actionableRows = [];
+  for (const row of serviceRows) {
+    const hasAccept = await row.locator('button:has-text("Accept")').count() > 0;
+    const hasDecline = await row.locator('button:has-text("Decline")').count() > 0;
+    if (hasAccept && hasDecline) {
+      actionableRows.push(row);
+    }
+  }
+  if (actionableRows.length < 2) {
+    throw new Error('Not enough actionable service rows found');
+  }
+  // Randomly select which row to accept
+  const acceptRowIndex = Math.floor(Math.random() * 2);
+  const declineRowIndex = acceptRowIndex === 0 ? 1 : 0;
+  // Accept one service
+  const acceptBtn = actionableRows[acceptRowIndex].locator('button:has-text("Accept")');
+  await expect(acceptBtn).toBeVisible();
+  await acceptBtn.click();
+  console.log(`Accepted service in row ${acceptRowIndex}`);
+  await page.waitForTimeout(1000);
+  // Decline the other service
+  const declineBtn = actionableRows[declineRowIndex].locator('button:has-text("Decline")');
+  await expect(declineBtn).toBeVisible();
+  await declineBtn.click();
+  console.log(`Declined service in row ${declineRowIndex}`);
+  await page.waitForTimeout(1000);
   // Wait for the page to fully load after clicking Accept
   await page.waitForLoadState('networkidle');
   await page.waitForTimeout(2000); // Extra wait for UI updates
