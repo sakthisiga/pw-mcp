@@ -1,6 +1,8 @@
 import { test, expect } from '@playwright/test';
-import dotenv from 'dotenv';
 import fs from 'fs';
+import dotenv from 'dotenv';
+import { writeAbisExecutionDetails } from '../utils/jsonWriter';
+const { readAbisExecutionDetails } = require('../utils/jsonWriter');
 // Removed require for fs as we are using ES module imports
 const faker = require('faker');
 dotenv.config();
@@ -215,45 +217,11 @@ test('Login to Abis, create lead, and create proposal', async ({ page }) => {
 
   console.log('Proposal saved, verifying status...');
 
-  // Wait for proposal table to be visible before extracting service details
-  // Try multiple selectors and columns for robustness
-  let serviceDetails = [];
-  let foundRows = false;
-  const possibleTableSelectors = [
-    'table:has-text("Service")', // table containing 'Service' header
-    'table', // any table
-    '[role="table"]', // ARIA role table
-  ];
-  for (const tableSelector of possibleTableSelectors) {
-    const proposalTable = page.locator(tableSelector);
-    if (await proposalTable.count() && await proposalTable.isVisible()) {
-      const serviceTableRows = await proposalTable.locator('tr').all();
-      for (const row of serviceTableRows) {
-        // Try multiple columns for service name
-        for (let col = 0; col < 5; col++) {
-          try {
-            const cell = row.locator('td').nth(col);
-            if (await cell.count()) {
-              const text = await cell.textContent();
-              if (text && text.trim() && text.toLowerCase().includes('service')) continue; // skip header
-              // Heuristic: skip empty, header, or numeric-only cells
-              if (text && text.trim().length > 2 && /[a-zA-Z]/.test(text)) {
-                serviceDetails.push({ name: text.trim() });
-                foundRows = true;
-                break;
-              }
-            }
-          } catch (err) { continue; }
-        }
-      }
-      if (foundRows) break;
-    }
-  }
+  // Removed unused service extraction logic. Services are captured directly from dropdown selection.
 
   // Save lead details to a JSON file
   const leadDetails = { name, email, phone };
-  fs.writeFileSync('abis_execution_details.json', JSON.stringify(leadDetails, null, 2));
-    console.log('Lead details saved to JSON file:', leadDetails);
+  writeAbisExecutionDetails(leadDetails);
     
   // Step: Click "More" in the dropdown and select "Mark as Sent"
   await page.waitForSelector('button:has-text("More")');
@@ -440,8 +408,8 @@ test('Login to Abis, create lead, and create proposal', async ({ page }) => {
       zip
     },
     proposal: {
-  proposalNumber: proposalNumberHtml || '',
-  services: selectedServices
+      proposalNumber: proposalNumberHtml || '',
+      services: selectedServices
     },
     company: {
       company,
@@ -449,21 +417,12 @@ test('Login to Abis, create lead, and create proposal', async ({ page }) => {
       gst: gstValue
     }
   };
-  fs.writeFileSync('abis_execution_details.json', JSON.stringify(detailsJson, null, 2));
-  console.log('Lead details saved to JSON file:', detailsJson);
+  writeAbisExecutionDetails(detailsJson);
 
   const saveCustomerBtn = page.locator('#custformsubmit');
   await expect(saveCustomerBtn).toBeVisible({ timeout: 15000 });
   await expect(saveCustomerBtn).toBeEnabled();
   await saveCustomerBtn.click();
   console.log('Clicked Save after Convert to customer');
-
-  // Print all lead details at end of execution
-  try {
-    const finalDetails = JSON.parse(fs.readFileSync('abis_execution_details.json', 'utf8'));
-    console.log('Final Lead Details:', finalDetails);
-  } catch (err) {
-    console.error('Error reading final lead details:', err);
-  }
 
 });
