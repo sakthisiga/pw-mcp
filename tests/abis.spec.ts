@@ -1,7 +1,9 @@
 import { test, expect } from '@playwright/test';
 import dotenv from 'dotenv';
+import fs from 'fs';
+// Removed require for fs as we are using ES module imports
+const faker = require('faker');
 dotenv.config();
-const fs = require('fs');
 
 const APP_BASE_URL = process.env.APP_BASE_URL;
 const E2E_USER = process.env.E2E_USER;
@@ -32,9 +34,9 @@ test('Login to Abis, create lead, and create proposal', async ({ page }) => {
   await expect(page.getByRole('heading', { name: /Add new lead/i })).toBeVisible();
 
   // Fill lead details
-  const name = `TestUser_${randomString(5)}`;
-  const email = `test_${randomString(5)}@example.com`;
-  const phone = `999${Math.floor(Math.random() * 1000000).toString().padStart(6, '0')}`;
+  const name = faker.name.findName();
+  const email = faker.internet.email();
+  const phone = faker.phone.phoneNumber('999#######');
   const form = page.locator('#lead_form');
   await form.locator('input#name').fill(name);
   await expect(form.locator('input#name')).toHaveValue(name);
