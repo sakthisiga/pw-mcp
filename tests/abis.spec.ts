@@ -199,10 +199,10 @@ test('Login to Abis, create lead, and create proposal', async ({ page }) => {
   // Capture selected services for JSON output (after both are assigned)
   let selectedServices = [];
   if (selectedService && selectedService !== 'Choose Service') {
-    selectedServices.push({ name: selectedService });
+    selectedServices.push({ name: selectedService, company: selectedCompany });
   }
   if (secondService && secondService !== 'Choose Service' && secondService !== selectedService) {
-    selectedServices.push({ name: secondService });
+    selectedServices.push({ name: secondService, company: selectedCompany });
   }
 
   // Click the Save button
@@ -440,8 +440,8 @@ test('Login to Abis, create lead, and create proposal', async ({ page }) => {
       zip
     },
     proposal: {
-      proposalNumber: proposalNumberHtml || '',
-      services: selectedServices
+  proposalNumber: proposalNumberHtml || '',
+  services: selectedServices
     },
     company: {
       company,
