@@ -45,6 +45,58 @@ test('Login to Abis, create lead, and create proposal', async ({ page }) => {
   await form.locator('input#phonenumber').fill(phone);
   await expect(form.locator('input#phonenumber')).toHaveValue(phone);
 
+  // Fill additional lead fields with random values
+  const company = faker.company.companyName();
+  const address = faker.address.streetAddress();
+  const city = faker.address.city();
+  // Generate a 6-digit zip code as a string
+  const zip = String(Math.floor(100000 + Math.random() * 900000));
+
+  // Fill Company
+  await form.locator('input#company').fill(company);
+  await expect(form.locator('input#company')).toHaveValue(company);
+  console.log('Lead Company:', company);
+
+  // Fill Address
+  await form.locator('input#address').fill(address);
+  await expect(form.locator('input#address')).toHaveValue(address);
+  console.log('Lead Address:', address);
+
+  // Fill City
+  await form.locator('input#city').fill(city);
+  await expect(form.locator('input#city')).toHaveValue(city);
+  console.log('Lead City:', city);
+
+  // Select State (always Tamil Nadu)
+  const stateDropdown = form.locator('select#state');
+  await expect(stateDropdown).toBeVisible();
+  await stateDropdown.selectOption({ label: 'Tamil Nadu' });
+  const selectedState = await stateDropdown.locator('option:checked').textContent();
+  console.log('Lead State:', selectedState);
+
+  // Fill Zip code
+  // Robust zip code field handling
+  let zipInput = form.locator('input#zipcode');
+  if (!(await zipInput.count())) {
+    zipInput = form.locator("input[name='zipcode']");
+  }
+  if (!(await zipInput.count())) {
+    zipInput = form.locator("input[name*='zip']");
+  }
+  if (!(await zipInput.count())) {
+    zipInput = form.locator("input[name*='postal']");
+  }
+  if (!(await zipInput.count())) {
+    zipInput = form.locator("input[name*='pincode']");
+  }
+  if (await zipInput.count()) {
+    await zipInput.fill(zip);
+    await expect(zipInput).toHaveValue(zip);
+    console.log('Lead Zip code:', zip);
+  } else {
+    console.warn('Zip code field not found, skipping zip code entry.');
+  }
+
   // Save lead
   const saveButton = form.locator('button:has-text("Save")');
   await expect(saveButton).toBeVisible();
@@ -259,11 +311,86 @@ test('Login to Abis, create lead, and create proposal', async ({ page }) => {
   await convertLink.click();
   console.log('Clicked Convert to customer for lead:', leadName);
 
+  // Pause and take screenshot for debugging modal fields
+  await page.screenshot({ path: 'convert-to-customer-modal.png', fullPage: true });
+  // Removed pause for normal test execution
+
+  // Debug: log Convert to Customer modal HTML before filling PAN/GST
+  // ...existing code...
+
   // Wait for the Save button with id 'custformsubmit' to be visible and click it
+  // Robustly fill PAN and GST fields before saving
+  // Wait for modal to be fully loaded
+  const convertModal = page.locator('.modal:visible');
+  await expect(convertModal).toBeVisible({ timeout: 10000 });
+
+  // Try multiple selector strategies for PAN and GST fields
+  let panInput = convertModal.locator("input[name='pan_num']");
+  let gstInput = convertModal.locator("input[name='vat']");
+  if (!(await panInput.count())) panInput = convertModal.locator("#pan_num");
+  if (!(await panInput.count())) panInput = page.locator("input[name='pan_num']");
+  if (!(await panInput.count())) panInput = page.locator("#pan_num");
+  if (!(await gstInput.count())) gstInput = convertModal.locator("input[name='gst']");
+  if (!(await gstInput.count())) gstInput = page.locator("input[name='vat']");
+  if (!(await gstInput.count())) gstInput = page.locator("input[name='gst']");
+
+  // Retry filling if not found immediately
+  let panFilled = false, gstFilled = false;
+  let panValue = 'NA', gstValue = 'NA';
+  for (let i = 0; i < 3; i++) {
+    if (!panFilled && await panInput.count()) {
+      await panInput.first().fill('NA');
+      panFilled = true;
+      panValue = 'NA';
+      console.log('Entered NA for PAN Number');
+    }
+    if (!gstFilled && await gstInput.count()) {
+      await gstInput.first().fill('NA');
+      gstFilled = true;
+      gstValue = 'NA';
+      console.log('Entered NA for GST Number');
+    }
+    if (panFilled && gstFilled) break;
+    await page.waitForTimeout(1000);
+  }
+  if (!panFilled) {
+    console.warn('PAN Number field not found');
+    panValue = '';
+  }
+  if (!gstFilled) {
+    console.warn('GST Number field not found');
+    gstValue = '';
+  }
+
+  // Update lead_details.json with PAN, GST, and additional lead info
+  let allDetails = {};
+  try {
+    allDetails = JSON.parse(fs.readFileSync('lead_details.json', 'utf8'));
+  } catch (err) {
+    allDetails = {};
+  }
+  allDetails.pan = panValue;
+  allDetails.gst = gstValue;
+  allDetails.company = company;
+  allDetails.address = address;
+  allDetails.city = city;
+  allDetails.state = selectedState;
+  allDetails.zip = zip;
+  fs.writeFileSync('lead_details.json', JSON.stringify(allDetails, null, 2));
+  console.log('Lead details updated with PAN and GST:', allDetails);
+
   const saveCustomerBtn = page.locator('#custformsubmit');
   await expect(saveCustomerBtn).toBeVisible({ timeout: 15000 });
   await expect(saveCustomerBtn).toBeEnabled();
   await saveCustomerBtn.click();
   console.log('Clicked Save after Convert to customer');
+
+  // Print all lead details at end of execution
+  try {
+    const finalDetails = JSON.parse(fs.readFileSync('lead_details.json', 'utf8'));
+    console.log('Final Lead Details:', finalDetails);
+  } catch (err) {
+    console.error('Error reading final lead details:', err);
+  }
 
 });
