@@ -20,8 +20,6 @@ test-results/
 # VSCode settings
 .vscode/
 
-# npm
-package-lock.json
 
 # Others
 .last-run.json
