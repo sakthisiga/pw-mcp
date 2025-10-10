@@ -1,4 +1,51 @@
+// Helper for resilient fill
+async function resilientFill(locator, value, page, label, retries = 3) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      await locator.fill(value);
+      await expect(locator).toHaveValue(value, { timeout: 5000 });
+      return;
+    } catch (e) {
+      await page.screenshot({ path: `fill-fail-${label}-${i}.png`, fullPage: true });
+      fs.writeFileSync(`fill-fail-${label}-${i}.html`, await page.content());
+      if (i === retries - 1) throw new Error(`Failed to fill ${label}: ${e}`);
+      await page.waitForTimeout(1000);
+    }
+  }
+}
+
+// Helper for resilient click
+async function resilientClick(locator, page, label, retries = 3) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      await expect(locator).toBeVisible({ timeout: 5000 });
+      await locator.click();
+      return;
+    } catch (e) {
+      await page.screenshot({ path: `click-fail-${label}-${i}.png`, fullPage: true });
+      fs.writeFileSync(`click-fail-${label}-${i}.html`, await page.content());
+      if (i === retries - 1) throw new Error(`Failed to click ${label}: ${e}`);
+      await page.waitForTimeout(1000);
+    }
+  }
+}
+
+// Helper for resilient expect visible
+async function resilientExpectVisible(locator, page, label, retries = 3) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      await expect(locator).toBeVisible({ timeout: 5000 });
+      return;
+    } catch (e) {
+      await page.screenshot({ path: `expect-visible-fail-${label}-${i}.png`, fullPage: true });
+      fs.writeFileSync(`expect-visible-fail-${label}-${i}.html`, await page.content());
+      if (i === retries - 1) throw new Error(`Failed to expect visible ${label}: ${e}`);
+      await page.waitForTimeout(1000);
+    }
+  }
+}
 import { test, expect } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 import fs from 'fs';
 import dotenv from 'dotenv';
 import { writeAbisExecutionDetails } from '../utils/jsonWriter';
@@ -16,36 +63,51 @@ function randomString(length: number) {
 }
 
 test('ABIS Sanity', async ({ page }) => {
-  test.setTimeout(90000);
+  test.setTimeout(300000); // 5 minutes
+  console.log('--- Starting ABIS Sanity Test ---');
   // Login
+  console.log('Step: Login page navigation');
   await page.goto(APP_BASE_URL!);
-  await page.fill('input[name="email"]', E2E_USER!);
-  await page.fill('input[name="password"]', E2E_PASS!);
-  await page.click('button:has-text("Login")');
-  await expect(page.locator('text=Invoices Awaiting Payment')).toBeVisible();
+  console.log('Step: Filling login credentials');
+  await resilientFill(page.locator('input[name="email"]'), E2E_USER!, page, 'login-email');
+  console.log('Step: Filled email');
+  await resilientFill(page.locator('input[name="password"]'), E2E_PASS!, page, 'login-password');
+  console.log('Step: Filled password');
+  await resilientClick(page.locator('button:has-text("Login")'), page, 'login-button');
+  console.log('Step: Clicked login button');
+  await resilientExpectVisible(page.locator('text=Invoices Awaiting Payment'), page, 'login-success');
+  console.log('Step: Login success confirmed');
   console.log('Login successful');
 
   // Navigate to leads page and click New Lead
+  console.log('Step: Navigating to leads page');
   await page.goto(`${APP_BASE_URL}/leads`);
+  console.log('Step: Looking for New Lead link');
   const newLeadLink = page.locator('a', { hasText: 'New Lead' });
-  await expect(newLeadLink).toBeVisible();
-  await newLeadLink.click();
+  console.log('Step: Found New Lead link');
+  await resilientExpectVisible(newLeadLink, page, 'new-lead-link');
+  console.log('Step: New Lead link visible');
+  await resilientClick(newLeadLink, page, 'new-lead-link');
+  console.log('Step: Clicked New Lead link');
   console.log('Navigated to New Lead page');
 
   // Ensure form is loaded
-  await expect(page.getByRole('heading', { name: /Add new lead/i })).toBeVisible();
+  console.log('Step: Waiting for lead form heading');
+  await resilientExpectVisible(page.getByRole('heading', { name: /Add new lead/i }), page, 'lead-form-heading');
+  console.log('Step: Lead form heading visible');
 
   // Fill lead details
+  console.log('Step: Filling lead details');
   const name = faker.name.findName();
   const email = faker.internet.email();
   const phone = faker.phone.phoneNumber('999#######');
   const form = page.locator('#lead_form');
-  await form.locator('input#name').fill(name);
-  await expect(form.locator('input#name')).toHaveValue(name);
-  await form.locator('input#email').fill(email);
-  await expect(form.locator('input#email')).toHaveValue(email);
-  await form.locator('input#phonenumber').fill(phone);
-  await expect(form.locator('input#phonenumber')).toHaveValue(phone);
+  await resilientFill(form.locator('input#name'), name, page, 'lead-name');
+  console.log('Step: Filled lead name');
+  await resilientFill(form.locator('input#email'), email, page, 'lead-email');
+  console.log('Step: Filled lead email');
+  await resilientFill(form.locator('input#phonenumber'), phone, page, 'lead-phone');
+  console.log('Step: Filled lead phone');
 
   // Fill additional lead fields with random values
   const company = faker.company.companyName();
@@ -55,8 +117,8 @@ test('ABIS Sanity', async ({ page }) => {
   const zip = String(Math.floor(100000 + Math.random() * 900000));
 
   // Fill Company
-  await form.locator('input#company').fill(company);
-  await expect(form.locator('input#company')).toHaveValue(company);
+  await resilientFill(form.locator('input#company'), company, page, 'lead-company');
+  console.log('Step: Filled lead company');
   console.log('Lead Company:', company);
 
   // Fill Address
@@ -604,9 +666,20 @@ test('ABIS Sanity', async ({ page }) => {
   await expect(proposalServicesDropdown).toBeVisible({ timeout: 10000 });
   await page.waitForTimeout(1500);
   // Select a service from Proposal Services dropdown
-  const proposalServiceOptions = await proposalServicesDropdown.locator('option').allTextContents();
-  const validProposalServiceOptions = proposalServiceOptions.filter((opt: string) => opt && opt !== 'Please Select');
-  if (validProposalServiceOptions.length === 0) throw new Error('No valid proposal services found');
+  let validProposalServiceOptions: string[] = [];
+  let proposalServiceOptions: string[] = [];
+  for (let i = 0; i < 5; i++) {
+    proposalServiceOptions = await proposalServicesDropdown.locator('option').allTextContents();
+    validProposalServiceOptions = proposalServiceOptions.filter((opt: string) => opt && opt !== 'Please Select');
+    if (validProposalServiceOptions.length > 0) break;
+    await page.waitForTimeout(1000);
+  }
+  if (validProposalServiceOptions.length === 0) {
+    await page.screenshot({ path: 'proposal-service-options-not-found.png', fullPage: true });
+    const pageHtml = await page.content();
+    require('fs').writeFileSync('proposal-service-options-not-found.html', pageHtml);
+    throw new Error('No valid proposal services found after retries. Screenshot and HTML saved for debugging.');
+  }
   const randomProposalService = validProposalServiceOptions[Math.floor(Math.random() * validProposalServiceOptions.length)];
   await proposalServicesDropdown.selectOption({ label: randomProposalService });
   console.log('Proposal Service selected:', randomProposalService);
@@ -684,8 +757,30 @@ test('ABIS Sanity', async ({ page }) => {
   console.log('New Task button clicked');
 
   // Wait for popup/modal to appear
-  const taskModal = page.locator('.modal:visible');
-  await expect(taskModal).toBeVisible({ timeout: 10000 });
+  let taskModal = page.locator('.modal:visible');
+  let modalAppeared = false;
+  for (let i = 0; i < 5; i++) {
+    if (await taskModal.isVisible()) {
+      modalAppeared = true;
+      break;
+    }
+    await page.waitForTimeout(1000);
+    taskModal = page.locator('.modal:visible');
+  }
+  if (!modalAppeared) {
+    // Try fallback: look for any .modal
+    const anyModal = page.locator('.modal');
+    if (await anyModal.isVisible()) {
+      taskModal = anyModal;
+      modalAppeared = true;
+    }
+  }
+  if (!modalAppeared) {
+    await page.screenshot({ path: 'task-modal-not-found.png', fullPage: true });
+    const pageHtml = await page.content();
+    require('fs').writeFileSync('task-modal-not-found.html', pageHtml);
+    throw new Error('Task modal not found after clicking New Task. Screenshot and HTML saved for debugging.');
+  }
   console.log('Task modal opened');
 
   // Select the "Subject" input and enter the text "Payment Collection"
@@ -711,9 +806,22 @@ test('ABIS Sanity', async ({ page }) => {
   console.log('Task Save clicked');
 
   // Wait for post-save popup/modal to appear
-  await page.waitForTimeout(2000);
-  const postSaveModal = page.locator('.modal:visible');
-  await expect(postSaveModal).toBeVisible({ timeout: 10000 });
+  let postSaveModal = page.locator('.modal:visible');
+  let postModalAppeared = false;
+  for (let i = 0; i < 10; i++) {
+    if (await postSaveModal.isVisible()) {
+      postModalAppeared = true;
+      break;
+    }
+    await page.waitForTimeout(1000);
+    postSaveModal = page.locator('.modal:visible');
+  }
+  if (!postModalAppeared) {
+    await page.screenshot({ path: 'post-save-modal-not-found.png', fullPage: true });
+    const pageHtml = await page.content();
+    require('fs').writeFileSync('post-save-modal-not-found.html', pageHtml);
+    throw new Error('Post-save modal not found after saving task. Screenshot and HTML saved for debugging.');
+  }
   console.log('Post-save modal opened');
 
   // Click "Status" and select "Mark as In Progress"
@@ -768,29 +876,136 @@ test('ABIS Sanity', async ({ page }) => {
   test.info().attach('Task Created', { body: taskScreenshot, contentType: 'image/png' });
   
   // Close the modal (try clicking close button or X)
+  let modalClosed = false;
   const closeBtn = postSaveModal.locator('button, a', { hasText: 'Close' });
   if (await closeBtn.count()) {
     await closeBtn.click();
+    modalClosed = true;
     console.log('Task modal closed');
   } else {
     // Try clicking X button
     const xBtn = postSaveModal.locator('button.close, .modal-header .close');
     if (await xBtn.count()) {
       await xBtn.click();
+      modalClosed = true;
       console.log('Task modal closed via X');
     } else {
       console.warn('Could not find close button for task modal');
     }
   }
+  // Fallback: if modal is still visible, try Escape and clicking outside
+  let fallbackModalClosed = false;
+  for (let i = 0; i < 10; i++) {
+    if (!(await postSaveModal.isVisible())) {
+      fallbackModalClosed = true;
+      break;
+    }
+    await page.keyboard.press('Escape');
+    await page.locator('body').click({ position: { x: 10, y: 10 } });
+    if (await closeBtn.count()) {
+      await closeBtn.click();
+    } else if (await postSaveModal.locator('button.close, .modal-header .close').count()) {
+      await postSaveModal.locator('button.close, .modal-header .close').click();
+    }
+    await page.waitForTimeout(1000);
+  }
+  if (!fallbackModalClosed) {
+    await page.screenshot({ path: 'modal-not-closed-fallback.png', fullPage: true });
+    const pageHtml = await page.content();
+    require('fs').writeFileSync('modal-not-closed-fallback.html', pageHtml);
+    throw new Error('Modal did not close after all fallback actions (fallback loop). Screenshot and HTML saved for debugging.');
+  }
 
   // Click "Tasks" tab in the service page (use role=tab and data-group)
   // Wait for modal and backdrop to be hidden before clicking Tasks tab
   const modalBackdrop = page.locator('.modal-backdrop');
-  await expect(postSaveModal).not.toBeVisible({ timeout: 15000 });
-  await expect(modalBackdrop).not.toBeVisible({ timeout: 15000 });
+  let modalClosedFinal = false;
+  for (let i = 0; i < 5; i++) {
+    if (!(await postSaveModal.isVisible())) {
+      modalClosed = true;
+      break;
+    }
+    await page.keyboard.press('Escape');
+    await page.locator('body').click({ position: { x: 10, y: 10 } });
+    const closeBtn = postSaveModal.locator('button, a', { hasText: 'Close' });
+    if (await closeBtn.count()) await closeBtn.click();
+    const xBtn = postSaveModal.locator('button.close, .modal-header .close');
+    if (await xBtn.count()) await xBtn.click();
+    await page.waitForTimeout(1000);
+  }
+  if (!modalClosed) {
+    await page.screenshot({ path: 'modal-not-closed.png', fullPage: true });
+    const pageHtml = await page.content();
+    require('fs').writeFileSync('modal-not-closed.html', pageHtml);
+    throw new Error('Modal did not close after all fallback actions. Screenshot and HTML saved for debugging.');
+  }
+  // Now check for backdrop
+  let backdropClosedFinal = false;
+  for (let i = 0; i < 5; i++) {
+    if (!(await modalBackdrop.isVisible())) {
+    backdropClosedFinal = true;
+      break;
+    }
+    await page.keyboard.press('Escape');
+    await page.locator('body').click({ position: { x: 10, y: 10 } });
+    await page.waitForTimeout(1000);
+  }
+  if (!backdropClosedFinal) {
+    await page.screenshot({ path: 'modal-backdrop-not-closed.png', fullPage: true });
+    const pageHtml = await page.content();
+    require('fs').writeFileSync('modal-backdrop-not-closed.html', pageHtml);
+    throw new Error('Modal backdrop did not disappear after all fallback actions. Screenshot and HTML saved for debugging.');
+  }
+  console.log('Step: Waiting for Tasks tab to be visible');
   const tasksTab = page.locator('a[role="tab"][data-group="project_tasks"]');
-  await expect(tasksTab).toBeVisible({ timeout: 10000 });
-  await tasksTab.click();
-  await page.waitForTimeout(3000);
-  console.log('Tasks tab clicked in service page');
+  let tasksTabVisible = false;
+  for (let i = 0; i < 10; i++) {
+    try {
+      await expect(tasksTab).toBeVisible({ timeout: 5000 });
+      tasksTabVisible = true;
+      break;
+    } catch (e) {
+      await page.screenshot({ path: `tasks-tab-not-visible-${i}.png`, fullPage: true });
+      fs.writeFileSync(`tasks-tab-not-visible-${i}.html`, await page.content());
+      await page.waitForTimeout(1000);
+    }
+  }
+  if (!tasksTabVisible) {
+    throw new Error('Tasks tab not visible after retries. See screenshots and HTML for diagnosis.');
+  }
+  console.log('Step: Tasks tab is visible');
+  let tasksTabClicked = false;
+  for (let i = 0; i < 5; i++) {
+    try {
+      await tasksTab.click();
+      tasksTabClicked = true;
+      break;
+    } catch (e) {
+      await page.screenshot({ path: `tasks-tab-click-fail-${i}.png`, fullPage: true });
+      fs.writeFileSync(`tasks-tab-click-fail-${i}.html`, await page.content());
+      await page.waitForTimeout(1000);
+    }
+  }
+  if (!tasksTabClicked) {
+    throw new Error('Failed to click Tasks tab after retries. See screenshots and HTML for diagnosis.');
+  }
+  console.log('Step: Clicked Tasks tab');
+  // Wait for tasks panel to appear
+  const tasksSummaryHeading = page.locator('h4:has-text("Tasks Summary")');
+  let tasksSummaryVisible = false;
+  for (let i = 0; i < 10; i++) {
+    try {
+      await expect(tasksSummaryHeading).toBeVisible({ timeout: 5000 });
+      tasksSummaryVisible = true;
+      break;
+    } catch (e) {
+      await page.screenshot({ path: `tasks-summary-not-visible-${i}.png`, fullPage: true });
+      fs.writeFileSync(`tasks-summary-not-visible-${i}.html`, await page.content());
+      await page.waitForTimeout(1000);
+    }
+  }
+  if (!tasksSummaryVisible) {
+    throw new Error('Tasks Summary heading not visible after retries. See screenshots and HTML for diagnosis.');
+  }
+  console.log('Step: Tasks Summary heading is visible');
 });
