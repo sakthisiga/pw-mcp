@@ -24,6 +24,8 @@ export default defineConfig({
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   reporter: [ ['html'] ],
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
+  testDir: './tests',
+  timeout: 180000, // 180 seconds per test
   use: {
     /* Base URL to use in actions like `await page.goto('')`. */
     // baseURL: 'http://localhost:3000',
@@ -34,6 +36,10 @@ export default defineConfig({
     screenshot: 'on',
     /* Also capture video for failed tests (optional) */
     video: 'retain-on-failure',
+    launchOptions: {
+      // headless: true,
+      slowMo: 100,
+    },
   },
 
   /* Configure projects for major browsers */

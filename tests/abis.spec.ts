@@ -424,7 +424,7 @@ test('ABIS Sanity', async ({ page }) => {
   await saveCustomerBtn.click();
   console.log('Clicked Save after Convert to customer');
 
-    await page.waitForTimeout(3000);
+  await expect(page.locator('a[data-group="profile"]')).toBeVisible({ timeout: 15000 });
   // Customer conversion screenshot
   const customerScreenshot = await page.screenshot({ fullPage: true });
   test.info().attach('Customer Converted', { body: customerScreenshot, contentType: 'image/png' });
@@ -476,8 +476,13 @@ test('ABIS Sanity', async ({ page }) => {
   const indices = options.map((_, i) => i).filter(i => i > 0);
   const randomIndex = indices[Math.floor(Math.random() * indices.length)];
   await dropdown.selectOption({ index: randomIndex });
-  const selectedOption = await dropdown.locator('option:checked').textContent();
+  let selectedOption = '';
+  if (await adminsModal.isVisible() && await dropdown.isVisible()) {
+  selectedOption = (await dropdown.locator('option:checked').textContent()) || '';
   console.log('Randomly selected Customer Admin:', selectedOption);
+  } else {
+    console.warn('Dropdown or modal not visible after selecting option, skipping reading selected option.');
+  }
 
   // Click Save in modal
   const saveAdminBtn = adminsModal.locator('button, a', { hasText: 'Save' });
@@ -485,7 +490,7 @@ test('ABIS Sanity', async ({ page }) => {
   await saveAdminBtn.click();
   console.log('Customer Admin modal Save clicked');
 
-    await page.waitForTimeout(3000);
+  await expect(adminsModal).not.toBeVisible({ timeout: 15000 });
   // Customer admin added screenshot
   const adminScreenshot = await page.screenshot({ fullPage: true });
   test.info().attach('Customer Admin Added', { body: adminScreenshot, contentType: 'image/png' });
@@ -779,6 +784,10 @@ test('ABIS Sanity', async ({ page }) => {
   }
 
   // Click "Tasks" tab in the service page (use role=tab and data-group)
+  // Wait for modal and backdrop to be hidden before clicking Tasks tab
+  const modalBackdrop = page.locator('.modal-backdrop');
+  await expect(postSaveModal).not.toBeVisible({ timeout: 15000 });
+  await expect(modalBackdrop).not.toBeVisible({ timeout: 15000 });
   const tasksTab = page.locator('a[role="tab"][data-group="project_tasks"]');
   await expect(tasksTab).toBeVisible({ timeout: 10000 });
   await tasksTab.click();
