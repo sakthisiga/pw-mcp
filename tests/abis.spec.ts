@@ -114,6 +114,10 @@ test('ABIS Sanity', async ({ page }) => {
   // Wait for the lead modal to appear (target #lead-modal)
   const dialog = page.locator('#lead-modal');
   await expect(dialog).toBeVisible({ timeout: 10000 });
+  await page.waitForTimeout(3000);
+   // Lead creation screenshot
+  const leadScreenshot = await page.screenshot({ fullPage: true });
+  test.info().attach('Lead Created', { body: leadScreenshot, contentType: 'image/png' });
 
   // In the lead modal, click Proposals tab
   const proposalsTab = dialog.locator('button, a', { hasText: 'Proposals' });
@@ -222,6 +226,10 @@ test('ABIS Sanity', async ({ page }) => {
   // Logging and screenshots at key steps
 
   console.log('Proposal saved, verifying status...');
+  await page.waitForTimeout(3000);
+  // Proposal creation screenshot
+  const proposalScreenshot = await page.screenshot({ fullPage: true });
+  test.info().attach('Proposal Created', { body: proposalScreenshot, contentType: 'image/png' });
 
   // Removed unused service extraction logic. Services are captured directly from dropdown selection.
 
@@ -416,6 +424,12 @@ test('ABIS Sanity', async ({ page }) => {
   await saveCustomerBtn.click();
   console.log('Clicked Save after Convert to customer');
 
+    await page.waitForTimeout(3000);
+  // Customer conversion screenshot
+  const customerScreenshot = await page.screenshot({ fullPage: true });
+  test.info().attach('Customer Converted', { body: customerScreenshot, contentType: 'image/png' });
+
+
   // Next workflow: Click the Profile tab
   // Use a more specific selector for the Profile tab to avoid strict mode violation
   const profileTab = page.locator('a[data-group="profile"]');
@@ -470,6 +484,11 @@ test('ABIS Sanity', async ({ page }) => {
   await expect(saveAdminBtn).toBeVisible({ timeout: 10000 });
   await saveAdminBtn.click();
   console.log('Customer Admin modal Save clicked');
+
+    await page.waitForTimeout(3000);
+  // Customer admin added screenshot
+  const adminScreenshot = await page.screenshot({ fullPage: true });
+  test.info().attach('Customer Admin Added', { body: adminScreenshot, contentType: 'image/png' });
 
   // Update abis_execution_details.json in nested format (now includes customerAdmin)
   let detailsJson = {
@@ -614,6 +633,10 @@ test('ABIS Sanity', async ({ page }) => {
   await saveBtn.click();
   console.log('Service Save clicked');
 
+    await page.waitForTimeout(2000);
+  // Service creation screenshot
+  const serviceScreenshot = await page.screenshot({ fullPage: true });
+  test.info().attach('Service Created', { body: serviceScreenshot, contentType: 'image/png' });
   // After saving, capture service number and deadline from the resulting page
   await page.waitForTimeout(2000);
   // Extract service number from the URL if possible
@@ -735,8 +758,10 @@ test('ABIS Sanity', async ({ page }) => {
     fs.writeFileSync('task-status-modal-debug.html', modalHtml);
     console.warn('Could not find status selector for task modal. Modal HTML saved to task-status-modal-debug.html');
   }
-  // ...existing code...
-
+  // Task creation screenshot
+  const taskScreenshot = await page.screenshot({ fullPage: true });
+  test.info().attach('Task Created', { body: taskScreenshot, contentType: 'image/png' });
+  
   // Close the modal (try clicking close button or X)
   const closeBtn = postSaveModal.locator('button, a', { hasText: 'Close' });
   if (await closeBtn.count()) {
