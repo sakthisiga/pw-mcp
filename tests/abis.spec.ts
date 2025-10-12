@@ -4,12 +4,21 @@ function logger(type: 'INFO' | 'STEP' | 'WARN' | 'ERROR', ...args: any[]) {
   const now = new Date();
   const timestamp = now.toISOString();
   let prefix = `[${type}]`;
-  if (type === 'STEP') prefix = '[STEP]';
-  if (type === 'INFO') prefix = '[INFO]';
-  if (type === 'WARN') prefix = '[WARN]';
-  if (type === 'ERROR') prefix = '[ERROR]';
-  // Print to console
-  console.log(`${prefix} [${timestamp}]`, ...args);
+  if (type === 'STEP') {
+    // All STEP logs: [STEP] [timestamp] --- message ---
+    if (args.length === 1) {
+      console.log(`[STEP] [${timestamp}] --- ${args[0]} ---`);
+    } else {
+      // If multiple args, join them as a message
+      console.log(`[STEP] [${timestamp}] --- ${args.join(' ')} ---`);
+    }
+  } else if (type === 'INFO') {
+    console.log(`[INFO] [${timestamp}]`, ...args);
+  } else if (type === 'WARN') {
+    console.log(`[WARN] [${timestamp}]`, ...args);
+  } else if (type === 'ERROR') {
+    console.log(`[ERROR] [${timestamp}]`, ...args);
+  }
 }
 
 // Helper for resilient fill
