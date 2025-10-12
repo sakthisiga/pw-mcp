@@ -658,16 +658,22 @@ test('ABIS Sanity', async ({ page }) => {
   // Match by prefix (e.g., 'PRO-001286')
   // Try to match by prefix (e.g., 'PRO-001287') or substring
   // Find the option whose text includes the proposal number, then select by value
-  const proposalOptionHandles = await acceptedProposalsDropdown.locator('option').elementHandles();
   let proposalValue = '';
-  for (const handle of proposalOptionHandles) {
-    const text = (await handle.textContent())?.trim() || '';
-    if (text.includes(proposalNumberForService)) {
-      proposalValue = (await handle.getAttribute('value')) || '';
-      break;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const proposalOptionHandles = await acceptedProposalsDropdown.locator('option').elementHandles();
+    for (const handle of proposalOptionHandles) {
+      const text = (await handle.textContent())?.trim() || '';
+      if (text.includes(proposalNumberForService)) {
+        proposalValue = (await handle.getAttribute('value')) || '';
+        break;
+      }
     }
+    if (proposalValue) break;
+    await page.waitForTimeout(1000); // Wait 1s before retry
   }
   if (!proposalValue) {
+    const proposalOptionsAfterRetry = await acceptedProposalsDropdown.locator('option').allTextContents();
+    logger('ERROR', 'Available proposal options after retries:', proposalOptionsAfterRetry);
     throw new Error(`Could not find proposal option with proposal number: ${proposalNumberForService}`);
   }
   await acceptedProposalsDropdown.selectOption({ value: proposalValue });
