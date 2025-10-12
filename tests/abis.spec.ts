@@ -44,6 +44,7 @@ async function resilientExpectVisible(locator, page, label, retries = 3) {
     }
   }
 }
+
 import { test, expect } from '@playwright/test';
 import type { Locator, Page } from '@playwright/test';
 import fs from 'fs';
@@ -1024,39 +1025,78 @@ test('ABIS Sanity', async ({ page }) => {
   let paymentTaskFound = await findPaymentCollectionTask();
   if (!paymentTaskFound) {
     console.log('Payment Collection task not found, attempting to create again');
-    // Click New Task button again
     const newTaskBtn = page.locator('button, a', { hasText: 'New Task' });
-    if (await newTaskBtn.count() && await newTaskBtn.isVisible()) {
-      await newTaskBtn.click();
-      // Wait for modal
-      const taskModal = page.locator('.modal:visible');
-      await expect(taskModal).toBeVisible({ timeout: 10000 });
-      // Fill subject
-      const subjectInput = taskModal.locator('input[name="subject"], input[placeholder*="Subject"]');
-      await expect(subjectInput).toBeVisible({ timeout: 10000 });
-      await subjectInput.fill('Payment Collection');
-      // Set due date to tomorrow
-      const dueDateInput = taskModal.locator('input[name="due_date"], input[placeholder*="Due Date"]');
-      if (await dueDateInput.count() && await dueDateInput.isVisible()) {
-        const tomorrow = new Date();
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        const tomorrowStr = tomorrow.toISOString().split('T')[0];
-        await dueDateInput.fill(tomorrowStr);
+    let modalOpened = false;
+    let subjectInputVisible = false;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (await newTaskBtn.count() && await newTaskBtn.isVisible()) {
+        await newTaskBtn.click();
+        // Wait for modal
+        const taskModal = page.locator('.modal:visible');
+        for (let i = 0; i < 10; i++) {
+          if (await taskModal.isVisible()) {
+            modalOpened = true;
+            break;
+          }
+          await page.waitForTimeout(1000);
+        }
+        if (!modalOpened) {
+          await page.screenshot({ path: `task-modal-not-visible-attempt-${attempt}.png`, fullPage: true });
+          require('fs').writeFileSync(`task-modal-not-visible-attempt-${attempt}.html`, await page.content());
+          // Try to close any existing modals/backdrops and retry
+          await page.keyboard.press('Escape');
+          await page.locator('body').click({ position: { x: 10, y: 10 } });
+          continue;
+        }
+        // Wait for subject input
+        const subjectInput = taskModal.locator('input[name="subject"], input[placeholder*="Subject"]');
+        for (let i = 0; i < 10; i++) {
+          if (await subjectInput.count() && await subjectInput.isVisible()) {
+            subjectInputVisible = true;
+            break;
+          }
+          await page.waitForTimeout(1000);
+        }
+        if (!subjectInputVisible) {
+          await page.screenshot({ path: `subject-input-not-visible-attempt-${attempt}.png`, fullPage: true });
+          require('fs').writeFileSync(`subject-input-not-visible-attempt-${attempt}.html`, await page.content());
+          // Try to close modal and retry
+          await page.keyboard.press('Escape');
+          await page.locator('body').click({ position: { x: 10, y: 10 } });
+          continue;
+        }
+        // Fill subject
+        await subjectInput.fill('Payment Collection');
+        // Set due date to tomorrow
+        const dueDateInput = taskModal.locator('input[name="due_date"], input[placeholder*="Due Date"]');
+        if (await dueDateInput.count() && await dueDateInput.isVisible()) {
+          const tomorrow = new Date();
+          tomorrow.setDate(tomorrow.getDate() + 1);
+          const tomorrowStr = tomorrow.toISOString().split('T')[0];
+          await dueDateInput.fill(tomorrowStr);
+        }
+        // Save task
+        const saveTaskBtn = taskModal.locator('button, a', { hasText: 'Save' });
+        for (let i = 0; i < 10; i++) {
+          if (await saveTaskBtn.count() && await saveTaskBtn.isVisible()) {
+            await saveTaskBtn.click();
+            break;
+          }
+          await page.waitForTimeout(1000);
+        }
+        // Wait for modal to close
+        for (let i = 0; i < 10; i++) {
+          if (!(await taskModal.isVisible())) break;
+          await page.waitForTimeout(1000);
+        }
+        // Reopen Tasks tab if needed
+        await tasksTab.click();
+        await expect(tasksSummaryHeading).toBeVisible({ timeout: 10000 });
+        // Check again for Payment Collection task
+        paymentTaskFound = await findPaymentCollectionTask();
+        break;
       }
-      // Save task
-      const saveTaskBtn = taskModal.locator('button, a', { hasText: 'Save' });
-      await expect(saveTaskBtn).toBeVisible({ timeout: 10000 });
-      await saveTaskBtn.click();
-      // Wait for modal to close
-      for (let i = 0; i < 10; i++) {
-        if (!(await taskModal.isVisible())) break;
-        await page.waitForTimeout(1000);
-      }
-      // Reopen Tasks tab if needed
-      await tasksTab.click();
-      await expect(tasksSummaryHeading).toBeVisible({ timeout: 10000 });
-      // Check again for Payment Collection task
-      paymentTaskFound = await findPaymentCollectionTask();
+      await page.waitForTimeout(1000);
     }
   }
   if (!paymentTaskFound) {
@@ -1066,5 +1106,36 @@ test('ABIS Sanity', async ({ page }) => {
     throw new Error('Payment Collection task not found after creation and retry. Screenshot and HTML saved for debugging.');
   } else {
     console.log('Payment Collection task found in Tasks panel.');
+    // Step: Change status of Payment Collection task to 'In Progress' using grid row dropdown
+    const paymentTaskRow = page.locator('tr:has-text("Payment Collection")');
+    let statusChanged = false;
+    if (await paymentTaskRow.count() && await paymentTaskRow.isVisible()) {
+      // Find the status cell (contains 'Not Started')
+      const statusCell = paymentTaskRow.locator('td:has-text("Not Started")');
+      if (await statusCell.count() && await statusCell.isVisible()) {
+        // Find the dropdown toggle anchor in the status cell
+        const dropdownToggle = statusCell.locator('a.dropdown-toggle, a[id^="tableTaskStatus-"]');
+        if (await dropdownToggle.count() && await dropdownToggle.isVisible()) {
+          await dropdownToggle.first().click();
+          // Wait for dropdown and select 'Mark as In Progress' option
+          const markInProgressOption = page.locator('a', { hasText: 'Mark as In Progress' });
+          for (let i = 0; i < 5; i++) {
+            if (await markInProgressOption.count() && await markInProgressOption.isVisible()) {
+              await markInProgressOption.first().click();
+              statusChanged = true;
+              console.log('Payment Collection task status set to In Progress via dropdown option');
+              break;
+            }
+            await page.waitForTimeout(500);
+          }
+        }
+      }
+    }
+    if (!statusChanged) {
+      await page.screenshot({ path: 'payment-collection-status-not-changed.png', fullPage: true });
+      const pageHtml = await page.content();
+      require('fs').writeFileSync('payment-collection-status-not-changed.html', pageHtml);
+      throw new Error('Could not change Payment Collection task status to In Progress. Screenshot and HTML saved for debugging.');
+    }
   }
 });
