@@ -8,7 +8,6 @@ const fs = require('fs');
 
 function writeAbisExecutionDetails(detailsJson, filePath = 'abis_execution_details.json') {
   fs.writeFileSync(filePath, JSON.stringify(detailsJson, null, 2));
-  console.log('Lead details saved to JSON file:', detailsJson);
 }
 
 function readAbisExecutionDetails(filePath = 'abis_execution_details.json') {

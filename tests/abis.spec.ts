@@ -1,5 +1,21 @@
+import type { Locator, Page } from '@playwright/test';
+// Logger helper
+function logger(type: 'INFO' | 'STEP' | 'WARN' | 'ERROR', ...args: any[]) {
+  const now = new Date();
+  const timestamp = now.toISOString();
+  let prefix = `[${type}]`;
+  if (type === 'STEP') prefix = '[STEP]';
+  if (type === 'INFO') prefix = '[INFO]';
+  if (type === 'WARN') prefix = '[WARN]';
+  if (type === 'ERROR') prefix = '[ERROR]';
+  // Print to console
+  console.log(`${prefix} [${timestamp}]`, ...args);
+}
+
 // Helper for resilient fill
-async function resilientFill(locator, value, page, label, retries = 3) {
+// ...existing code...
+
+async function resilientFill(locator: Locator, value: string, page: Page, label: string, retries = 3) {
   for (let i = 0; i < retries; i++) {
     try {
       await locator.fill(value);
@@ -15,7 +31,7 @@ async function resilientFill(locator, value, page, label, retries = 3) {
 }
 
 // Helper for resilient click
-async function resilientClick(locator, page, label, retries = 3) {
+async function resilientClick(locator: Locator, page: Page, label: string, retries = 3) {
   for (let i = 0; i < retries; i++) {
     try {
       await expect(locator).toBeVisible({ timeout: 5000 });
@@ -31,7 +47,7 @@ async function resilientClick(locator, page, label, retries = 3) {
 }
 
 // Helper for resilient expect visible
-async function resilientExpectVisible(locator, page, label, retries = 3) {
+async function resilientExpectVisible(locator: Locator, page: Page, label: string, retries = 3) {
   for (let i = 0; i < retries; i++) {
     try {
       await expect(locator).toBeVisible({ timeout: 5000 });
@@ -46,7 +62,7 @@ async function resilientExpectVisible(locator, page, label, retries = 3) {
 }
 
 import { test, expect } from '@playwright/test';
-import type { Locator, Page } from '@playwright/test';
+// ...existing code...
 import fs from 'fs';
 import dotenv from 'dotenv';
 import { writeAbisExecutionDetails } from '../utils/jsonWriter';
@@ -65,50 +81,50 @@ function randomString(length: number) {
 
 test('ABIS Sanity', async ({ page }) => {
   test.setTimeout(300000); // 5 minutes
-  console.log('--- Starting ABIS Sanity Test ---');
+  logger('INFO', '--- Starting ABIS Sanity Test ---');
   // Login
-  console.log('Step: Login page navigation');
+  logger('STEP', 'Login page navigation');
   await page.goto(APP_BASE_URL!);
-  console.log('Step: Filling login credentials');
+  logger('STEP', 'Filling login credentials');
   await resilientFill(page.locator('input[name="email"]'), E2E_USER!, page, 'login-email');
-  console.log('Step: Filled email');
+  logger('STEP', 'Filled email');
   await resilientFill(page.locator('input[name="password"]'), E2E_PASS!, page, 'login-password');
-  console.log('Step: Filled password');
+  logger('STEP', 'Filled password');
   await resilientClick(page.locator('button:has-text("Login")'), page, 'login-button');
-  console.log('Step: Clicked login button');
+  logger('STEP', 'Clicked login button');
   await resilientExpectVisible(page.locator('text=Invoices Awaiting Payment'), page, 'login-success');
-  console.log('Step: Login success confirmed');
-  console.log('Login successful');
+  logger('STEP', 'Login success confirmed');
+  logger('INFO', 'Login successful');
 
   // Navigate to leads page and click New Lead
-  console.log('Step: Navigating to leads page');
+  logger('STEP', 'Navigating to leads page');
   await page.goto(`${APP_BASE_URL}/leads`);
-  console.log('Step: Looking for New Lead link');
+  logger('STEP', 'Looking for New Lead link');
   const newLeadLink = page.locator('a', { hasText: 'New Lead' });
-  console.log('Step: Found New Lead link');
+  logger('STEP', 'Found New Lead link');
   await resilientExpectVisible(newLeadLink, page, 'new-lead-link');
-  console.log('Step: New Lead link visible');
+  logger('STEP', 'New Lead link visible');
   await resilientClick(newLeadLink, page, 'new-lead-link');
-  console.log('Step: Clicked New Lead link');
-  console.log('Navigated to New Lead page');
+  logger('STEP', 'Clicked New Lead link');
+  logger('INFO', 'Navigated to New Lead page');
 
   // Ensure form is loaded
-  console.log('Step: Waiting for lead form heading');
+  logger('STEP', 'Waiting for lead form heading');
   await resilientExpectVisible(page.getByRole('heading', { name: /Add new lead/i }), page, 'lead-form-heading');
-  console.log('Step: Lead form heading visible');
+  logger('STEP', 'Lead form heading visible');
 
   // Fill lead details
-  console.log('Step: Filling lead details');
+  logger('STEP', 'Filling lead details');
   const name = faker.name.findName();
   const email = faker.internet.email();
   const phone = faker.phone.phoneNumber('999#######');
   const form = page.locator('#lead_form');
   await resilientFill(form.locator('input#name'), name, page, 'lead-name');
-  console.log('Step: Filled lead name');
+  logger('STEP', 'Filled lead name');
   await resilientFill(form.locator('input#email'), email, page, 'lead-email');
-  console.log('Step: Filled lead email');
+  logger('STEP', 'Filled lead email');
   await resilientFill(form.locator('input#phonenumber'), phone, page, 'lead-phone');
-  console.log('Step: Filled lead phone');
+  logger('STEP', 'Filled lead phone');
 
   // Fill additional lead fields with random values
   const company = faker.company.companyName();
@@ -119,25 +135,25 @@ test('ABIS Sanity', async ({ page }) => {
 
   // Fill Company
   await resilientFill(form.locator('input#company'), company, page, 'lead-company');
-  console.log('Step: Filled lead company');
-  console.log('Lead Company:', company);
+  logger('STEP', 'Filled lead company');
+  logger('INFO', 'Lead Company:', company);
 
   // Fill Address
   await form.locator('input#address').fill(address);
   await expect(form.locator('input#address')).toHaveValue(address);
-  console.log('Lead Address:', address);
+  logger('INFO', 'Lead Address:', address);
 
   // Fill City
   await form.locator('input#city').fill(city);
   await expect(form.locator('input#city')).toHaveValue(city);
-  console.log('Lead City:', city);
+  logger('INFO', 'Lead City:', city);
 
   // Select State (always Tamil Nadu)
   const stateDropdown = form.locator('select#state');
   await expect(stateDropdown).toBeVisible();
   await stateDropdown.selectOption({ label: 'Tamil Nadu' });
   const selectedState = await stateDropdown.locator('option:checked').textContent();
-  console.log('Lead State:', selectedState);
+  logger('INFO', 'Lead State:', selectedState);
 
   // Fill Zip code
   // Robust zip code field handling
@@ -160,12 +176,12 @@ test('ABIS Sanity', async ({ page }) => {
     await page.waitForTimeout(500);
     const zipValue = await zipInput.inputValue();
     if (zipValue === zip) {
-      console.log('Lead Zip code:', zip);
+  logger('INFO', 'Lead Zip code:', zip);
     } else {
-      console.warn(`Zip code field did not update as expected. Expected: ${zip}, Actual: ${zipValue}`);
+  logger('WARN', `Zip code field did not update as expected. Expected: ${zip}, Actual: ${zipValue}`);
     }
   } else {
-    console.warn('Zip code field not found, skipping zip code entry.');
+  logger('WARN', 'Zip code field not found, skipping zip code entry.');
   }
 
   // Save lead
@@ -173,7 +189,7 @@ test('ABIS Sanity', async ({ page }) => {
   await expect(saveButton).toBeVisible();
   await expect(saveButton).toBeEnabled();
   await saveButton.click();
-  console.log('Lead saved, waiting for modal...');
+  logger('STEP', 'Lead saved, waiting for modal...');
   // Wait for the lead modal to appear (target #lead-modal)
   const dialog = page.locator('#lead-modal');
   await expect(dialog).toBeVisible({ timeout: 10000 });
@@ -186,7 +202,7 @@ test('ABIS Sanity', async ({ page }) => {
   const proposalsTab = dialog.locator('button, a', { hasText: 'Proposals' });
   await expect(proposalsTab).toBeVisible();
   await proposalsTab.click();
-  console.log('Proposals tab clicked');
+  logger('STEP', 'Proposals tab clicked');
   // Click New Proposal button and wait for navigation to new page
   await Promise.all([
     page.waitForNavigation(),
@@ -209,7 +225,7 @@ test('ABIS Sanity', async ({ page }) => {
     // (moved to after both services are assigned)
   await companyDropdown.selectOption({ index: randomCompanyIndex });
   const selectedCompany = await companyDropdown.locator('option:checked').textContent();
-  console.log('Randomly selected company dropdown option:', selectedCompany);
+  logger('INFO', 'Randomly selected company dropdown option:', selectedCompany);
   // Manually trigger change event on Company dropdown
   await page.evaluate((selector) => {
     const el = document.querySelector(selector);
@@ -237,9 +253,9 @@ test('ABIS Sanity', async ({ page }) => {
     const selectedServiceRaw = await serviceDropdown.locator('option:checked').textContent();
     selectedService = selectedServiceRaw ? selectedServiceRaw : '';
   } while (selectedService === 'Choose Service');
-  console.log('Randomly selected service dropdown option:', selectedService);
+  logger('INFO', 'Randomly selected service dropdown option:', selectedService);
   await page.waitForTimeout(3000);
-  console.log(`Selected service: ${selectedService}`);
+  logger('INFO', 'Selected service:', selectedService);
   // Click the button with id "btnAdditem"
   const addItemBtn = page.locator('#btnAdditem');
   await expect(addItemBtn).toBeVisible();
@@ -260,10 +276,10 @@ test('ABIS Sanity', async ({ page }) => {
       attempts++;
     } while ((secondService === 'Choose Service' || secondService === selectedService) && attempts < 10);
     if (secondService !== 'Choose Service' && secondService !== selectedService) {
-      console.log('Randomly selected second service dropdown option:', secondService);
+  logger('INFO', 'Randomly selected second service dropdown option:', secondService);
       await page.waitForTimeout(2000);
       await addItemBtn.click();
-      console.log(`Second service added: ${secondService}`);
+  logger('INFO', 'Second service added:', secondService);
     } else {
       console.warn('Could not find a distinct second service.');
     }
@@ -285,10 +301,10 @@ test('ABIS Sanity', async ({ page }) => {
   await expect(proposalSaveBtn).toBeVisible();
   await expect(proposalSaveBtn).toBeEnabled();
   await proposalSaveBtn.click();
-  console.log('Proposal save clicked, waiting for status...');
+  logger('STEP', 'Proposal save clicked, waiting for status...');
   // Logging and screenshots at key steps
 
-  console.log('Proposal saved, verifying status...');
+  logger('STEP', 'Proposal saved, verifying status...');
   await page.waitForTimeout(3000);
   // Proposal creation screenshot
   const proposalScreenshot = await page.screenshot({ fullPage: true });
@@ -305,7 +321,7 @@ test('ABIS Sanity', async ({ page }) => {
   await page.click('button:has-text("More")');
   await page.waitForSelector('text=Mark as Sent');
   await page.click('text=Mark as Sent');
-  console.log('Clicked Mark as Sent, waiting for status update...');
+  logger('STEP', 'Clicked Mark as Sent, waiting for status update...');
   // Step: Verify the lead status is updated to "Sent"
   // Use a more specific selector for the status label
   const sentStatusLabel = await page.locator('span.proposal-status-4,label-info:has-text("Sent")');
@@ -337,19 +353,19 @@ test('ABIS Sanity', async ({ page }) => {
   await expect(actionableRows[acceptRowIndex].acceptBtn).toBeVisible();
   await expect(actionableRows[acceptRowIndex].acceptBtn).toBeEnabled();
   await actionableRows[acceptRowIndex].acceptBtn.click();
-  console.log(`Accepted service in row ${acceptRowIndex}`);
+  logger('INFO', `Accepted service in row ${acceptRowIndex}`);
   await page.waitForTimeout(1000);
   // Decline the other service
   await expect(actionableRows[declineRowIndex].declineBtn).toBeVisible();
   await expect(actionableRows[declineRowIndex].declineBtn).toBeEnabled();
   await actionableRows[declineRowIndex].declineBtn.click();
-  console.log(`Declined service in row ${declineRowIndex}`);
+  logger('INFO', `Declined service in row ${declineRowIndex}`);
   await page.waitForTimeout(1000);
   // Wait for the page to fully load after clicking Accept
   await page.waitForLoadState('networkidle');
   await page.waitForTimeout(2000); // Extra wait for UI updates
 
-  console.log('Clicked Accept, waiting for final state...');
+  logger('STEP', 'Clicked Accept, waiting for final state...');
 
   // Extract proposal number from page content and update abis_execution_details.json
   const pageContent = await page.content();
@@ -360,7 +376,6 @@ test('ABIS Sanity', async ({ page }) => {
     if (proposalNumberHtml) {
       leadDetailsJson.proposalNumber = proposalNumberHtml;
       fs.writeFileSync('abis_execution_details.json', JSON.stringify(leadDetailsJson, null, 2));
-      console.log('Lead details with proposal number saved to JSON file:', leadDetailsJson);
     }
   } catch (err) {
     console.error('Error updating abis_execution_details.json:', err);
@@ -404,7 +419,7 @@ test('ABIS Sanity', async ({ page }) => {
   const convertLink = leadModal.locator('a:has-text("Convert to customer")');
   await expect(convertLink).toBeVisible({ timeout: 10000 });
   await convertLink.click();
-  console.log('Clicked Convert to customer for lead:', leadName);
+  logger('STEP', 'Clicked Convert to customer for lead:', leadName);
 
   // Wait for the page to fully load before taking screenshot for debugging modal fields
   await page.waitForLoadState('networkidle');
@@ -462,12 +477,12 @@ test('ABIS Sanity', async ({ page }) => {
     if (!panFilled && panInput && await panInput.count()) {
       await panInput.first().fill(panValue);
       panFilled = true;
-      console.log('Entered PAN Number:', panValue);
+  logger('INFO', 'Entered PAN Number:', panValue);
     }
     if (!gstFilled && gstInput && await gstInput.count()) {
       await gstInput.first().fill(gstValue);
       gstFilled = true;
-      console.log('Entered GST Number:', gstValue);
+  logger('INFO', 'Entered GST Number:', gstValue);
     }
     if (panFilled && gstFilled) break;
     await page.waitForTimeout(1000);
@@ -485,7 +500,7 @@ test('ABIS Sanity', async ({ page }) => {
   await expect(saveCustomerBtn).toBeVisible({ timeout: 15000 });
   await expect(saveCustomerBtn).toBeEnabled();
   await saveCustomerBtn.click();
-  console.log('Clicked Save after Convert to customer');
+  logger('STEP', 'Clicked Save after Convert to customer');
 
   await expect(page.locator('a[data-group="profile"]')).toBeVisible({ timeout: 15000 });
   // Customer conversion screenshot
@@ -498,7 +513,7 @@ test('ABIS Sanity', async ({ page }) => {
   const profileTab = page.locator('a[data-group="profile"]');
   await expect(profileTab).toBeVisible({ timeout: 10000 });
   await profileTab.click();
-  console.log('Profile tab clicked');
+  logger('STEP', 'Profile tab clicked');
 
   // Next workflow: Click the Customer Admins tab
 
@@ -506,7 +521,7 @@ test('ABIS Sanity', async ({ page }) => {
   const adminsTab = page.locator('button, a', { hasText: 'Customer Admins' });
   await expect(adminsTab).toBeVisible({ timeout: 10000 });
   await adminsTab.click();
-  console.log('Customer Admins tab clicked');
+  logger('STEP', 'Customer Admins tab clicked');
 
   // Wait for the tab panel to be visible
   const adminsPanel = page.locator('div[role="tabpanel"]:has-text("Assign Admin")');
@@ -522,7 +537,7 @@ test('ABIS Sanity', async ({ page }) => {
   }
   await expect(assignAdminBtn).toBeVisible({ timeout: 15000 });
   await assignAdminBtn.click();
-  console.log('Assign Admin button clicked');
+  logger('STEP', 'Assign Admin button clicked');
 
   // Wait for modal to appear
   let adminsModal = page.locator('#customer_admins_assign');
@@ -542,16 +557,16 @@ test('ABIS Sanity', async ({ page }) => {
   let selectedOption = '';
   if (await adminsModal.isVisible() && await dropdown.isVisible()) {
   selectedOption = (await dropdown.locator('option:checked').textContent()) || '';
-  console.log('Randomly selected Customer Admin:', selectedOption);
+  logger('INFO', 'Randomly selected Customer Admin:', selectedOption);
   } else {
-    console.warn('Dropdown or modal not visible after selecting option, skipping reading selected option.');
+  logger('WARN', 'Dropdown or modal not visible after selecting option, skipping reading selected option.');
   }
 
   // Click Save in modal
   const saveAdminBtn = adminsModal.locator('button, a', { hasText: 'Save' });
   await expect(saveAdminBtn).toBeVisible({ timeout: 10000 });
   await saveAdminBtn.click();
-  console.log('Customer Admin modal Save clicked');
+  logger('STEP', 'Customer Admin modal Save clicked');
 
   await expect(adminsModal).not.toBeVisible({ timeout: 15000 });
   // Customer admin added screenshot
@@ -591,24 +606,24 @@ test('ABIS Sanity', async ({ page }) => {
   const servicesTab = page.locator('a[data-group="projects"]');
   await expect(servicesTab).toBeVisible({ timeout: 10000 });
   await servicesTab.click();
-  console.log('Services tab clicked');
+  logger('STEP', 'Services tab clicked');
 
   // Click New service button
   const newServiceBtn = page.locator('button, a', { hasText: 'New service' });
   await expect(newServiceBtn).toBeVisible({ timeout: 10000 });
   await newServiceBtn.click();
-  console.log('New service button clicked');
+  logger('STEP', 'New service button clicked');
 
   // After clicking New service, log modal HTML for debugging
   const serviceModal = page.locator('.modal:visible');
   if (await serviceModal.count()) {
     const modalHtml = await serviceModal.innerHTML();
     fs.writeFileSync('service-modal-debug.html', modalHtml);
-    console.log('Service modal HTML saved to service-modal-debug.html');
+  logger('INFO', 'Service modal HTML saved to service-modal-debug.html');
   } else {
     const pageHtml = await page.content();
     fs.writeFileSync('service-page-debug.html', pageHtml);
-    console.log('Service page HTML saved to service-page-debug.html');
+  logger('INFO', 'Service page HTML saved to service-page-debug.html');
   }
   await page.waitForTimeout(2000);
 
@@ -647,7 +662,7 @@ test('ABIS Sanity', async ({ page }) => {
     throw new Error(`Could not find proposal option with proposal number: ${proposalNumberForService}`);
   }
   await acceptedProposalsDropdown.selectOption({ value: proposalValue });
-  console.log('Accepted Proposal selected by value:', proposalValue);
+  logger('INFO', 'Accepted Proposal selected by value:', proposalValue);
 
   // Wait for Proposal Services dropdown (#itemable_id) to populate
   let proposalServicesDropdown = page.locator('select#itemable_id');
@@ -683,7 +698,7 @@ test('ABIS Sanity', async ({ page }) => {
   }
   const randomProposalService = validProposalServiceOptions[Math.floor(Math.random() * validProposalServiceOptions.length)];
   await proposalServicesDropdown.selectOption({ label: randomProposalService });
-  console.log('Proposal Service selected:', randomProposalService);
+  logger('INFO', 'Proposal Service selected:', randomProposalService);
 
   // Wait for data to populate on other fields
   await page.waitForTimeout(2000);
@@ -703,14 +718,14 @@ test('ABIS Sanity', async ({ page }) => {
       const pad = (n: number) => n.toString().padStart(2, '0');
       const deadlineStr = `${pad(deadlineDate.getDate())}-${pad(deadlineDate.getMonth() + 1)}-${deadlineDate.getFullYear()}`;
       await deadlineInputBefore.fill(deadlineStr);
-      console.log('Default deadline set:', deadlineStr);
+  logger('INFO', 'Default deadline set:', deadlineStr);
     }
   }
   const saveBtn = page.locator('button#btnsubmit[type="submit"]');
   await expect(saveBtn).toBeVisible({ timeout: 10000 });
   await expect(saveBtn).toBeEnabled();
   await saveBtn.click();
-  console.log('Service Save clicked');
+  logger('STEP', 'Service Save clicked');
 
     await page.waitForTimeout(2000);
   // Service creation screenshot
@@ -743,9 +758,9 @@ test('ABIS Sanity', async ({ page }) => {
       deadline
     };
     writeAbisExecutionDetails(detailsJson);
-    console.log('Service details updated in JSON:', detailsJson.service);
+  logger('INFO', 'Service details updated in JSON:', detailsJson.service);
   } catch (err) {
-    console.error('Error updating service details in abis_execution_details.json:', err);
+  logger('ERROR', 'Error updating service details in abis_execution_details.json:', err);
   }
 
   // --- Workflow: Create new task after service creation ---
@@ -755,7 +770,7 @@ test('ABIS Sanity', async ({ page }) => {
   const newTaskBtn = page.locator('button, a', { hasText: 'New Task' });
   await expect(newTaskBtn).toBeVisible({ timeout: 10000 });
   await newTaskBtn.click();
-  console.log('New Task button clicked');
+  logger('STEP', 'New Task button clicked');
 
   // Wait for popup/modal to appear
   let taskModal = page.locator('.modal:visible');
@@ -782,14 +797,14 @@ test('ABIS Sanity', async ({ page }) => {
     require('fs').writeFileSync('task-modal-not-found.html', pageHtml);
     throw new Error('Task modal not found after clicking New Task. Screenshot and HTML saved for debugging.');
   }
-  console.log('Task modal opened');
+  logger('STEP', 'Task modal opened');
 
   // Select the "Subject" input and enter the text "Payment Collection"
   const subjectInput = taskModal.locator('input#subject, input[name="name"], input[placeholder*="Subject"]').first();
   await expect(subjectInput).toBeVisible({ timeout: 10000 });
   await subjectInput.click();
   await subjectInput.fill('Payment Collection');
-  console.log('Subject set to Payment Collection');
+  logger('INFO', 'Subject set to Payment Collection');
 
   // Select tomorrow's date in Due Date
   const dueDateInput = taskModal.locator('input#duedate, input[name="duedate"], input[placeholder*="Due Date"]');
@@ -798,13 +813,13 @@ test('ABIS Sanity', async ({ page }) => {
   const pad = (n: number) => n.toString().padStart(2, '0');
   const tomorrowStr = `${pad(tomorrow.getDate())}-${pad(tomorrow.getMonth() + 1)}-${tomorrow.getFullYear()}`;
   await dueDateInput.fill(tomorrowStr);
-  console.log('Due Date set:', tomorrowStr);
+  logger('INFO', 'Due Date set:', tomorrowStr);
 
   // Click Save in modal
   const saveTaskBtn = taskModal.locator('button, a', { hasText: 'Save' });
   await expect(saveTaskBtn).toBeVisible({ timeout: 10000 });
   await saveTaskBtn.click();
-  console.log('Task Save clicked');
+  logger('STEP', 'Task Save clicked');
 
   // Wait for post-save popup/modal to appear
   let postSaveModal = page.locator('.modal:visible');
@@ -823,7 +838,7 @@ test('ABIS Sanity', async ({ page }) => {
     require('fs').writeFileSync('post-save-modal-not-found.html', pageHtml);
     throw new Error('Post-save modal not found after saving task. Screenshot and HTML saved for debugging.');
   }
-  console.log('Post-save modal opened');
+  logger('STEP', 'Post-save modal opened');
 
   // Click "Status" and select "Mark as In Progress"
   let statusSet = false;
@@ -832,7 +847,7 @@ test('ABIS Sanity', async ({ page }) => {
   if (await statusDropdown.count() && await statusDropdown.isVisible()) {
     await statusDropdown.selectOption({ label: 'In Progress' });
     statusSet = true;
-    console.log('Task status set to In Progress via select');
+  logger('INFO', 'Task status set to In Progress via select');
   } else {
     // Try button with text 'Status' or 'In Progress'
     const statusButton = postSaveModal.getByText('Status', { exact: false });
@@ -842,7 +857,7 @@ test('ABIS Sanity', async ({ page }) => {
       if (await inProgressOption.count() && await inProgressOption.isVisible()) {
         await inProgressOption.click();
         statusSet = true;
-        console.log('Task status set to In Progress via button');
+          logger('INFO', 'Task status set to In Progress via button');
       }
     } else {
       // Try any element with aria-label containing 'Status' or 'In Progress'
@@ -853,7 +868,7 @@ test('ABIS Sanity', async ({ page }) => {
         if (await inProgressOption.count() && await inProgressOption.isVisible()) {
           await inProgressOption.click();
           statusSet = true;
-          console.log('Task status set to In Progress via aria-label');
+          logger('INFO', 'Task status set to In Progress via aria-label');
         }
       } else {
         // Try direct text selector for 'In Progress'
@@ -861,7 +876,7 @@ test('ABIS Sanity', async ({ page }) => {
         if (await inProgressDirect.count() && await inProgressDirect.isVisible()) {
           await inProgressDirect.click();
           statusSet = true;
-          console.log('Task status set to In Progress via direct text');
+          logger('INFO', 'Task status set to In Progress via direct text');
         }
       }
     }
@@ -870,7 +885,7 @@ test('ABIS Sanity', async ({ page }) => {
     // Log modal HTML for debugging
     const modalHtml = await postSaveModal.innerHTML();
     fs.writeFileSync('task-status-modal-debug.html', modalHtml);
-    console.warn('Could not find status selector for task modal. Modal HTML saved to task-status-modal-debug.html');
+  logger('WARN', 'Could not find status selector for task modal. Modal HTML saved to task-status-modal-debug.html');
   }
   // Task creation screenshot
   const taskScreenshot = await page.screenshot({ fullPage: true });
@@ -882,16 +897,16 @@ test('ABIS Sanity', async ({ page }) => {
   if (await closeBtn.count()) {
     await closeBtn.click();
     modalClosed = true;
-    console.log('Task modal closed');
+    logger('STEP', 'Task modal closed');
   } else {
     // Try clicking X button
     const xBtn = postSaveModal.locator('button.close, .modal-header .close');
     if (await xBtn.count()) {
       await xBtn.click();
       modalClosed = true;
-      console.log('Task modal closed via X');
+  logger('STEP', 'Task modal closed via X');
     } else {
-      console.warn('Could not find close button for task modal');
+  logger('WARN', 'Could not find close button for task modal');
     }
   }
   // Fallback: if modal is still visible, try Escape and clicking outside
@@ -957,7 +972,7 @@ test('ABIS Sanity', async ({ page }) => {
     require('fs').writeFileSync('modal-backdrop-not-closed.html', pageHtml);
     throw new Error('Modal backdrop did not disappear after all fallback actions. Screenshot and HTML saved for debugging.');
   }
-  console.log('Step: Waiting for Tasks tab to be visible');
+  logger('STEP', 'Waiting for Tasks tab to be visible');
   const tasksTab = page.locator('a[role="tab"][data-group="project_tasks"]');
   let tasksTabVisible = false;
   for (let i = 0; i < 10; i++) {
@@ -974,7 +989,7 @@ test('ABIS Sanity', async ({ page }) => {
   if (!tasksTabVisible) {
     throw new Error('Tasks tab not visible after retries. See screenshots and HTML for diagnosis.');
   }
-  console.log('Step: Tasks tab is visible');
+  logger('STEP', 'Tasks tab is visible');
   let tasksTabClicked = false;
   for (let i = 0; i < 5; i++) {
     try {
@@ -990,7 +1005,7 @@ test('ABIS Sanity', async ({ page }) => {
   if (!tasksTabClicked) {
     throw new Error('Failed to click Tasks tab after retries. See screenshots and HTML for diagnosis.');
   }
-  console.log('Step: Clicked Tasks tab');
+  logger('STEP', 'Clicked Tasks tab');
   // Wait for tasks panel to appear
   const tasksSummaryHeading = page.locator('h4:has-text("Tasks Summary")');
   let tasksSummaryVisible = false;
@@ -1008,7 +1023,7 @@ test('ABIS Sanity', async ({ page }) => {
   if (!tasksSummaryVisible) {
     throw new Error('Tasks Summary heading not visible after retries. See screenshots and HTML for diagnosis.');
   }
-  console.log('Step: Tasks Summary heading is visible');
+  logger('STEP', 'Tasks Summary heading is visible');
   // Step: Verify 'Payment Collection' task is present in Tasks panel
   async function findPaymentCollectionTask() {
     // Try to find a row/card with subject 'Payment Collection' in the Tasks panel
@@ -1024,7 +1039,7 @@ test('ABIS Sanity', async ({ page }) => {
 
   let paymentTaskFound = await findPaymentCollectionTask();
   if (!paymentTaskFound) {
-    console.log('Payment Collection task not found, attempting to create again');
+  logger('INFO', 'Payment Collection task not found, attempting to create again');
     const newTaskBtn = page.locator('button, a', { hasText: 'New Task' });
     let modalOpened = false;
     let subjectInputVisible = false;
@@ -1105,7 +1120,7 @@ test('ABIS Sanity', async ({ page }) => {
     require('fs').writeFileSync('payment-collection-task-not-found.html', pageHtml);
     throw new Error('Payment Collection task not found after creation and retry. Screenshot and HTML saved for debugging.');
   } else {
-    console.log('Payment Collection task found in Tasks panel.');
+  logger('INFO', 'Payment Collection task found in Tasks panel.');
     // Step: Change status of Payment Collection task to 'In Progress' using grid row dropdown
     const paymentTaskRow = page.locator('tr:has-text("Payment Collection")');
     let statusChanged = false;
@@ -1123,7 +1138,7 @@ test('ABIS Sanity', async ({ page }) => {
             if (await markInProgressOption.count() && await markInProgressOption.isVisible()) {
               await markInProgressOption.first().click();
               statusChanged = true;
-              console.log('Payment Collection task status set to In Progress via dropdown option');
+              logger('INFO', 'Payment Collection task status set to In Progress via dropdown option');
               break;
             }
             await page.waitForTimeout(500);
