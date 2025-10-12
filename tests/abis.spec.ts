@@ -1008,4 +1008,63 @@ test('ABIS Sanity', async ({ page }) => {
     throw new Error('Tasks Summary heading not visible after retries. See screenshots and HTML for diagnosis.');
   }
   console.log('Step: Tasks Summary heading is visible');
+  // Step: Verify 'Payment Collection' task is present in Tasks panel
+  async function findPaymentCollectionTask() {
+    // Try to find a row/card with subject 'Payment Collection' in the Tasks panel
+    const taskRow = page.locator('tr:has-text("Payment Collection"), .task-card:has-text("Payment Collection")');
+    for (let i = 0; i < 5; i++) {
+      if (await taskRow.count() && await taskRow.isVisible()) {
+        return true;
+      }
+      await page.waitForTimeout(1000);
+    }
+    return false;
+  }
+
+  let paymentTaskFound = await findPaymentCollectionTask();
+  if (!paymentTaskFound) {
+    console.log('Payment Collection task not found, attempting to create again');
+    // Click New Task button again
+    const newTaskBtn = page.locator('button, a', { hasText: 'New Task' });
+    if (await newTaskBtn.count() && await newTaskBtn.isVisible()) {
+      await newTaskBtn.click();
+      // Wait for modal
+      const taskModal = page.locator('.modal:visible');
+      await expect(taskModal).toBeVisible({ timeout: 10000 });
+      // Fill subject
+      const subjectInput = taskModal.locator('input[name="subject"], input[placeholder*="Subject"]');
+      await expect(subjectInput).toBeVisible({ timeout: 10000 });
+      await subjectInput.fill('Payment Collection');
+      // Set due date to tomorrow
+      const dueDateInput = taskModal.locator('input[name="due_date"], input[placeholder*="Due Date"]');
+      if (await dueDateInput.count() && await dueDateInput.isVisible()) {
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const tomorrowStr = tomorrow.toISOString().split('T')[0];
+        await dueDateInput.fill(tomorrowStr);
+      }
+      // Save task
+      const saveTaskBtn = taskModal.locator('button, a', { hasText: 'Save' });
+      await expect(saveTaskBtn).toBeVisible({ timeout: 10000 });
+      await saveTaskBtn.click();
+      // Wait for modal to close
+      for (let i = 0; i < 10; i++) {
+        if (!(await taskModal.isVisible())) break;
+        await page.waitForTimeout(1000);
+      }
+      // Reopen Tasks tab if needed
+      await tasksTab.click();
+      await expect(tasksSummaryHeading).toBeVisible({ timeout: 10000 });
+      // Check again for Payment Collection task
+      paymentTaskFound = await findPaymentCollectionTask();
+    }
+  }
+  if (!paymentTaskFound) {
+    await page.screenshot({ path: 'payment-collection-task-not-found.png', fullPage: true });
+    const pageHtml = await page.content();
+    require('fs').writeFileSync('payment-collection-task-not-found.html', pageHtml);
+    throw new Error('Payment Collection task not found after creation and retry. Screenshot and HTML saved for debugging.');
+  } else {
+    console.log('Payment Collection task found in Tasks panel.');
+  }
 });
