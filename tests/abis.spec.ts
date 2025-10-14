@@ -31,9 +31,11 @@ async function resilientFill(locator: Locator, value: string, page: Page, label:
       await expect(locator).toHaveValue(value, { timeout: 5000 });
       return;
     } catch (e) {
-      await page.screenshot({ path: `fill-fail-${label}-${i}.png`, fullPage: true });
-      fs.writeFileSync(`fill-fail-${label}-${i}.html`, await page.content());
-      if (i === retries - 1) throw new Error(`Failed to fill ${label}: ${e}`);
+      if (i === retries - 1) {
+        await page.screenshot({ path: `fill-fail-${label}-${i}.png`, fullPage: true });
+        fs.writeFileSync(`fill-fail-${label}-${i}.html`, await page.content());
+        throw new Error(`Failed to fill ${label}: ${e}`);
+      }
       await page.waitForTimeout(1000);
     }
   }
@@ -47,9 +49,11 @@ async function resilientClick(locator: Locator, page: Page, label: string, retri
       await locator.click();
       return;
     } catch (e) {
-      await page.screenshot({ path: `click-fail-${label}-${i}.png`, fullPage: true });
-      fs.writeFileSync(`click-fail-${label}-${i}.html`, await page.content());
-      if (i === retries - 1) throw new Error(`Failed to click ${label}: ${e}`);
+      if (i === retries - 1) {
+        await page.screenshot({ path: `click-fail-${label}-${i}.png`, fullPage: true });
+        fs.writeFileSync(`click-fail-${label}-${i}.html`, await page.content());
+        throw new Error(`Failed to click ${label}: ${e}`);
+      }
       await page.waitForTimeout(1000);
     }
   }
@@ -62,9 +66,11 @@ async function resilientExpectVisible(locator: Locator, page: Page, label: strin
       await expect(locator).toBeVisible({ timeout: 5000 });
       return;
     } catch (e) {
-      await page.screenshot({ path: `expect-visible-fail-${label}-${i}.png`, fullPage: true });
-      fs.writeFileSync(`expect-visible-fail-${label}-${i}.html`, await page.content());
-      if (i === retries - 1) throw new Error(`Failed to expect visible ${label}: ${e}`);
+      if (i === retries - 1) {
+        await page.screenshot({ path: `expect-visible-fail-${label}-${i}.png`, fullPage: true });
+        fs.writeFileSync(`expect-visible-fail-${label}-${i}.html`, await page.content());
+        throw new Error(`Failed to expect visible ${label}: ${e}`);
+      }
       await page.waitForTimeout(1000);
     }
   }
@@ -204,8 +210,7 @@ test('ABIS Sanity', async ({ page }) => {
   await expect(dialog).toBeVisible({ timeout: 10000 });
   await page.waitForTimeout(3000);
    // Lead creation screenshot
-  const leadScreenshot = await page.screenshot({ fullPage: true });
-  test.info().attach('Lead Created', { body: leadScreenshot, contentType: 'image/png' });
+  // Removed routine lead creation screenshot for optimization
 
   // In the lead modal, click Proposals tab
   const proposalsTab = dialog.locator('button, a', { hasText: 'Proposals' });
@@ -316,8 +321,7 @@ test('ABIS Sanity', async ({ page }) => {
   logger('STEP', 'Proposal saved, verifying status...');
   await page.waitForTimeout(3000);
   // Proposal creation screenshot
-  const proposalScreenshot = await page.screenshot({ fullPage: true });
-  test.info().attach('Proposal Created', { body: proposalScreenshot, contentType: 'image/png' });
+  // Removed routine proposal creation screenshot for optimization
 
   // Removed unused service extraction logic. Services are captured directly from dropdown selection.
 
@@ -433,7 +437,7 @@ test('ABIS Sanity', async ({ page }) => {
   // Wait for the page to fully load before taking screenshot for debugging modal fields
   await page.waitForLoadState('networkidle');
   await page.waitForTimeout(1000); // Extra wait for UI updates
-  await page.screenshot({ path: 'convert-to-customer-modal.png', fullPage: true });
+  // Removed routine convert-to-customer-modal screenshot for optimization
   // Removed pause for normal test execution
 
   // Debug: log Convert to Customer modal HTML before filling PAN/GST
@@ -513,8 +517,7 @@ test('ABIS Sanity', async ({ page }) => {
 
   await expect(page.locator('a[data-group="profile"]')).toBeVisible({ timeout: 15000 });
   // Customer conversion screenshot
-  const customerScreenshot = await page.screenshot({ fullPage: true });
-  test.info().attach('Customer Converted', { body: customerScreenshot, contentType: 'image/png' });
+  // Removed routine customer conversion screenshot for optimization
 
 
   // Next workflow: Click the Profile tab
@@ -579,8 +582,7 @@ test('ABIS Sanity', async ({ page }) => {
 
   await expect(adminsModal).not.toBeVisible({ timeout: 15000 });
   // Customer admin added screenshot
-  const adminScreenshot = await page.screenshot({ fullPage: true });
-  test.info().attach('Customer Admin Added', { body: adminScreenshot, contentType: 'image/png' });
+  // Removed routine customer admin added screenshot for optimization
 
   // Update abis_execution_details.json in nested format (now includes customerAdmin)
   let detailsJson = {
@@ -754,8 +756,7 @@ test('ABIS Sanity', async ({ page }) => {
 
     await page.waitForTimeout(2000);
   // Service creation screenshot
-  const serviceScreenshot = await page.screenshot({ fullPage: true });
-  test.info().attach('Service Created', { body: serviceScreenshot, contentType: 'image/png' });
+  // Removed routine service creation screenshot for optimization
   // After saving, capture service number and deadline from the resulting page
   await page.waitForTimeout(2000);
   // Extract service number from the URL if possible
@@ -913,8 +914,7 @@ test('ABIS Sanity', async ({ page }) => {
   logger('WARN', 'Could not find status selector for task modal. Modal HTML saved to task-status-modal-debug.html');
   }
   // Task creation screenshot
-  const taskScreenshot = await page.screenshot({ fullPage: true });
-  test.info().attach('Task Created', { body: taskScreenshot, contentType: 'image/png' });
+  // Removed routine task creation screenshot for optimization
   
   // Close the modal (try clicking close button or X)
   let modalClosed = false;
@@ -1034,14 +1034,13 @@ test('ABIS Sanity', async ({ page }) => {
   // Wait for tasks panel to appear
   const tasksSummaryHeading = page.locator('h4:has-text("Tasks Summary")');
   let tasksSummaryVisible = false;
-  for (let i = 0; i < 10; i++) {
+  for (let i = 0; i < 15; i++) {
     try {
-      await expect(tasksSummaryHeading).toBeVisible({ timeout: 5000 });
+      await expect(tasksSummaryHeading).toBeVisible({ timeout: 1000 });
       tasksSummaryVisible = true;
       break;
     } catch (e) {
-      await page.screenshot({ path: `tasks-summary-not-visible-${i}.png`, fullPage: true });
-      fs.writeFileSync(`tasks-summary-not-visible-${i}.html`, await page.content());
+      logger('WARN', `Tasks Summary heading not visible, retry ${i}`);
       await page.waitForTimeout(1000);
     }
   }
@@ -1053,18 +1052,23 @@ test('ABIS Sanity', async ({ page }) => {
   async function findPaymentCollectionTask() {
     // Try to find a row/card with subject 'Payment Collection' in the Tasks panel
     const taskRow = page.locator('tr:has-text("Payment Collection"), .task-card:has-text("Payment Collection")');
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 10; i++) {
       if (await taskRow.count() && await taskRow.isVisible()) {
+        logger('INFO', `Payment Collection task found on attempt ${i}`);
         return true;
       }
-      await page.waitForTimeout(1000);
+      logger('WARN', `Payment Collection task not found, attempt ${i}`);
+      await page.waitForTimeout(1500);
     }
     return false;
   }
 
+  // Extra wait after task creation before searching
+  logger('INFO', 'Waiting extra time for Payment Collection task to appear...');
+  await page.waitForTimeout(3000);
   let paymentTaskFound = await findPaymentCollectionTask();
   if (!paymentTaskFound) {
-  logger('INFO', 'Payment Collection task not found, attempting to create again');
+    logger('INFO', 'Payment Collection task not found, attempting to create again');
     const newTaskBtn = page.locator('button, a', { hasText: 'New Task' });
     let modalOpened = false;
     let subjectInputVisible = false;
@@ -1177,5 +1181,124 @@ test('ABIS Sanity', async ({ page }) => {
       require('fs').writeFileSync('payment-collection-status-not-changed.html', pageHtml);
       throw new Error('Could not change Payment Collection task status to In Progress. Screenshot and HTML saved for debugging.');
     }
+  }
+
+    // --- Additional Workflow: Go to Customer and Pre Payment tab ---
+    // Click "Go to Customer" button
+    const goToCustomerLink = page.locator('a', { hasText: 'Go to Customer' });
+    await expect(goToCustomerLink).toBeVisible({ timeout: 10000 });
+    await goToCustomerLink.click();
+    logger('STEP', 'Clicked Go to Customer link');
+
+    // Click "Pre Payment" tab from left side
+    const prePaymentTab = page.getByRole('link', { name: 'Pre Payment', exact: true });
+    await expect(prePaymentTab).toBeVisible({ timeout: 10000 });
+    await prePaymentTab.click();
+    logger('STEP', 'Clicked Pre Payment tab');
+
+    // --- New Pre Payment Workflow ---
+    // Click "New Pre Payment" link (not button)
+    // Click "New Pre Payment" link (not button)
+  const newPrePaymentLink = page.getByRole('link', { name: /New Pre Payment/i });
+  await expect(newPrePaymentLink).toBeVisible({ timeout: 10000 });
+  await newPrePaymentLink.click();
+  logger('STEP', 'Clicked New Pre Payment link');
+
+  // Wait for New Pre Payment modal/form to appear
+  const newPrePaymentHeading = page.getByRole('heading', { name: /New Pre Payment/i });
+  await expect(newPrePaymentHeading).toBeVisible({ timeout: 15000 });
+
+  // Wait for Service combobox to be visible after clicking New Pre Payment
+  // Robust Service selection: try multiple AJAX search terms and log diagnostics
+  const serviceDropdownButton = page.locator('button[data-id="project_id"]');
+  try {
+    await serviceDropdownButton.waitFor({ state: 'visible', timeout: 15000 });
+    await serviceDropdownButton.click();
+    const serviceSearchInput = page.locator('#project_ajax_search_wrapper .bs-searchbox input');
+    await serviceSearchInput.waitFor({ state: 'visible', timeout: 10000 });
+      // Use only a space ' ' to trigger service list
+      await serviceSearchInput.type(' ', { delay: 100 });
+      await page.waitForTimeout(500); // Give AJAX time to respond
+      try {
+        await page.waitForFunction(() => {
+          const options = Array.from(document.querySelectorAll('#project_ajax_search_wrapper .inner.open ul li a span.text'));
+          return options.some(opt => opt.textContent && opt.textContent.trim().length > 0);
+        }, { timeout: 7000 });
+        // Log available options for diagnostics
+        const options = await page.$$eval('#project_ajax_search_wrapper .inner.open ul li a span.text', nodes => nodes.map(n => n.textContent));
+        console.log(`Service options found for space search:`, options);
+        // Click the first non-empty option
+        const firstOption = page.locator('#project_ajax_search_wrapper .inner.open ul li a span.text').filter({ hasText: /.+/ }).first();
+        await firstOption.click();
+      } catch {
+        // Log dropdown HTML for diagnostics
+        const dropdownHtml = await page.locator('#project_ajax_search_wrapper .dropdown-menu.open').innerHTML();
+        require('fs').writeFileSync('service-dropdown-debug-space.html', dropdownHtml);
+        throw new Error('No service options found after space AJAX search. See diagnostics.');
+      }
+  } catch (e) {
+    await page.screenshot({ path: 'service-dropdown-arrow-fail.png' });
+    const html = await page.content();
+    require('fs').writeFileSync('service-dropdown-arrow-fail.html', html);
+    throw new Error('Service dropdown down arrow or options not visible. Screenshot and HTML saved for debugging.');
+  }
+
+  // Select Payment Mode using the correct <select> element
+  const paymentModeSelect = page.locator('.modal:visible select[name="custom_fields[credit_note][1]"], select[name="custom_fields[credit_note][1]"]');
+  await expect(paymentModeSelect).toBeVisible({ timeout: 10000 });
+  // Get available options for diagnostics
+  const paymentModeOptions = await paymentModeSelect.locator('option').allTextContents();
+  // Select the first valid option (not empty)
+  const validPaymentMode = paymentModeOptions.find(opt => opt && opt.trim().length > 0);
+  if (!validPaymentMode) {
+    await page.screenshot({ path: 'payment-mode-select-not-found.png', fullPage: true });
+    const html = await page.content();
+    require('fs').writeFileSync('payment-mode-select-not-found.html', html);
+    throw new Error('No valid Payment Mode options found. Screenshot and HTML saved for debugging.');
+  }
+  await paymentModeSelect.selectOption({ label: validPaymentMode.trim() });
+  logger('STEP', `Selected Payment Mode: ${validPaymentMode.trim()}`);
+
+  // Add "100" to the "Rate" field in the table (target input[name='rate'])
+  // Log all table inputs for diagnostics
+  const allTableInputs = await page.locator('table input').all();
+  for (const input of allTableInputs) {
+    const name = await input.getAttribute('name');
+    const placeholder = await input.getAttribute('placeholder');
+    const value = await input.inputValue();
+  }
+  let rateInput2 = page.locator('table input[name="rate"]');
+  if (await rateInput2.count() === 0) {
+    // fallback: input with placeholder Rate
+    rateInput2 = page.locator('table input[placeholder*="Rate" i]');
+  }
+  if (await rateInput2.count() === 0) {
+    // fallback: any input in table
+    rateInput2 = page.locator('table input').first();
+  }
+  await expect(rateInput2).toBeVisible({ timeout: 10000 });
+  await rateInput2.fill('100');
+  await expect(rateInput2).toHaveValue('100', { timeout: 5000 });
+  logger('STEP', 'Entered 100 in Rate field');
+
+  // Click the blue tick mark button in the table (use #btnAdditem)
+  const tickBtn2 = page.locator('#btnAdditem');
+  await expect(tickBtn2).toBeVisible({ timeout: 10000 });
+  await tickBtn2.click();
+  logger('STEP', 'Clicked blue tick mark button');
+
+  // Click Save
+  const saveBtn2 = page.getByRole('button', { name: /Save/i });
+  await expect(saveBtn2).toBeVisible({ timeout: 10000 });
+  await saveBtn2.click();
+  logger('STEP', 'Clicked Save for Pre Payment');
+  // Wait for modal to close or success indicator
+  await page.waitForTimeout(2000);
+  const modalStillVisible = await newPrePaymentHeading.isVisible();
+  if (modalStillVisible) {
+    await page.screenshot({ path: 'pre-payment-modal-not-closed.png', fullPage: true });
+    const html = await page.content();
+    require('fs').writeFileSync('pre-payment-modal-not-closed.html', html);
+    throw new Error('Pre Payment modal did not close after Save. Screenshot and HTML saved for debugging.');
   }
 });
