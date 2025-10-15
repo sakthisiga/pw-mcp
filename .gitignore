@@ -6,7 +6,7 @@ playwright-report/
 test-results/
 
 # Screenshots and debug images
-*.png
+# *.png
 
 # Environment files
 .env
