@@ -1627,6 +1627,47 @@ try {
   const pageContent = await page.content();
   // Save Proforma page HTML for diagnostics
   require('fs').writeFileSync('proforma-page-debug.html', pageContent);
+
+  let moreDropdownAcceptedClicked = false;
+  for (let i = 0; i < 5; i++) {
+    try {
+      const moreDropdowns = await page.locator('button, a', { hasText: 'More' }).elementHandles();
+      for (const handle of moreDropdowns) {
+        const text = (await handle.textContent())?.trim() || '';
+        if (text === 'More') {
+          const box = await handle.boundingBox();
+          if (box && box.width > 0 && box.height > 0) {
+            await handle.click();
+            moreDropdownAcceptedClicked = true;
+            logger('STEP', 'Clicked More dropdown in Proforma page (for Mark as Accepted)');
+            break;
+          }
+        }
+      }
+      if (moreDropdownAcceptedClicked) break;
+      await page.waitForTimeout(1000);
+    } catch (err) {
+      if (String(err).includes('Execution context was destroyed')) {
+        logger('WARN', 'Execution context destroyed, waiting for page stability and retrying More dropdown...');
+        await page.waitForLoadState('networkidle');
+        await page.waitForTimeout(1500);
+        continue;
+      } else {
+        throw err;
+      }
+    }
+  }
+  if (!moreDropdownAcceptedClicked) {
+    logger('WARN', 'Could not find or click More dropdown for Mark as Accepted.');
+    throw new Error('More dropdown not found or not clickable after retries.');
+  }
+
+  // Click "Mark as Accepted" in dropdown
+  const markAsAcceptedBtn = page.locator('a, button', { hasText: 'Mark as Accepted' });
+  await expect(markAsAcceptedBtn).toBeVisible({ timeout: 10000 });
+  await markAsAcceptedBtn.click();
+  logger('STEP', 'Clicked Mark as Accepted in Proforma page');
+  await page.waitForTimeout(2000);
   // Proforma number (starts with EST-)
   let proformaNumber = '';
   const proformaMatch = pageContent.match(/EST-\d+/);
