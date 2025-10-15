@@ -1801,6 +1801,47 @@ if (!saveSuccess) {
   throw new Error('Proforma Save did not trigger success indicator. See diagnostics.');
 }
 
-// After Save, do not click Save again; the button may not exist after successful submission
-// Success is already confirmed above; skip redundant Save button click and check
+try {
+  // Wait for page to be stable after Proforma save
+  await page.waitForLoadState('networkidle');
+  await page.waitForTimeout(1000);
+
+  // Click "Convert to Invoice" dropdown button directly (not "More")
+  let convertDropdownBtn = page.locator('button', { hasText: /Convert to Invoice/i });
+  let convertDropdownClicked = false;
+  for (let i = 0; i < 5; i++) {
+    if (await convertDropdownBtn.count() && await convertDropdownBtn.isVisible()) {
+      await convertDropdownBtn.click();
+      convertDropdownClicked = true;
+      logger('STEP', 'Clicked Convert to Invoice dropdown button');
+      break;
+    }
+    await page.waitForTimeout(1000);
+  }
+  if (!convertDropdownClicked) {
+    logger('WARN', 'Could not find or click Convert to Invoice dropdown button.');
+    throw new Error('Convert to Invoice dropdown button not found or not clickable after retries.');
+  }
+
+  // Click "Convert" option in the dropdown (not "Convert to invoice" again)
+  const convertOptionBtn = page.locator('a, button', { hasText: /^Convert$/i });
+  await expect(convertOptionBtn).toBeVisible({ timeout: 10000 });
+  await convertOptionBtn.click();
+  logger('STEP', 'Clicked Convert option in Convert to Invoice dropdown');
+
+  // Wait for navigation or success indicator
+  await Promise.race([
+    page.waitForNavigation({ timeout: 10000 }),
+    page.waitForSelector('.toast-success, .alert-success, .notification-success', { timeout: 10000 }),
+    page.waitForSelector('text=Invoice created successfully', { timeout: 10000 })
+  ]);
+  logger('INFO', 'Invoice conversion success confirmed.');
+} catch (err) {
+  logger('ERROR', 'Error during Convert to invoice workflow:', err);
+  await page.screenshot({ path: 'convert-to-invoice-failed.png', fullPage: true });
+  require('fs').writeFileSync('convert-to-invoice-failed.html', await page.content());
+  throw err;
+}
+await page.reload();
+await page.waitForTimeout(5000);
 });
