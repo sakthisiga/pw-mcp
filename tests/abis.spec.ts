@@ -1396,6 +1396,66 @@ test('ABIS Sanity', async ({ page }) => {
   await expect(saveBtn2).toBeVisible({ timeout: 10000 });
   await saveBtn2.click();
   logger('STEP', 'Clicked Save for Pre Payment');
+  // Post-save: Click More dropdown, Approve Payment, and Ok in alert popup
+  // 1. Click "More" dropdown in the right hand side top (robust strict mode fix)
+  // Wait for page to be stable after Save
+  await page.waitForLoadState('networkidle');
+  await page.waitForTimeout(1000);
+
+  let moreDropdownClicked = false;
+  for (let i = 0; i < 5; i++) {
+    try {
+      // Try to find the correct More dropdown (exclude "Load More" buttons)
+      const moreDropdowns = await page.locator('button, a', { hasText: 'More' }).elementHandles();
+      for (const handle of moreDropdowns) {
+        const text = (await handle.textContent())?.trim() || '';
+        // Exclude elements with text 'Load More'
+        if (text === 'More') {
+          // Check if visible and enabled
+          const box = await handle.boundingBox();
+          if (box && box.width > 0 && box.height > 0) {
+            await handle.click();
+            moreDropdownClicked = true;
+            logger('STEP', 'Clicked More dropdown after Pre Payment save');
+            break;
+          }
+        }
+      }
+      if (moreDropdownClicked) break;
+      await page.waitForTimeout(1000);
+    } catch (err) {
+      if (String(err).includes('Execution context was destroyed')) {
+        logger('WARN', 'Execution context destroyed, waiting for page stability and retrying More dropdown...');
+        await page.waitForLoadState('networkidle');
+        await page.waitForTimeout(1500);
+        continue;
+      } else {
+        throw err;
+      }
+    }
+  }
+  if (!moreDropdownClicked) {
+    logger('WARN', 'Could not find or click More dropdown after Pre Payment save.');
+    throw new Error('More dropdown not found or not clickable after retries.');
+  }
+
+  // 2. Click "Approve Payment" and handle alert popup
+  const approvePaymentBtn = page.locator('a, button', { hasText: 'Approve Payment' });
+  await expect(approvePaymentBtn).toBeVisible({ timeout: 10000 });
+  // Setup dialog handler before clicking Approve Payment
+  let alertHandled = false;
+  page.once('dialog', async dialog => {
+    logger('STEP', `Alert popup appeared after Approve Payment: ${dialog.message()}`);
+    await dialog.accept();
+    alertHandled = true;
+  });
+  await approvePaymentBtn.click();
+  logger('STEP', 'Clicked Approve Payment');
+  // Wait a short time for alert to appear and be handled
+  await page.waitForTimeout(2000);
+  if (!alertHandled) {
+    logger('WARN', 'No alert popup appeared or was handled after Approve Payment');
+  }
   // Wait for modal to close or success indicator
   await page.waitForTimeout(2000);
   const modalStillVisible = await newPrePaymentHeading.isVisible();
