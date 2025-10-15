@@ -1836,12 +1836,128 @@ try {
     page.waitForSelector('text=Invoice created successfully', { timeout: 10000 })
   ]);
   logger('INFO', 'Invoice conversion success confirmed.');
+
+  // --- Extract Invoice details after conversion ---
+  await page.waitForTimeout(2000); // Wait for UI update
+  const invoicePageContent = await page.content();
+  // Save invoice page HTML for diagnostics
+  require('fs').writeFileSync('invoice-page-debug.html', invoicePageContent);
+
+  // Robust extraction using node-html-parser
+  const domParser = require('node-html-parser');
+  const root = domParser.parse(invoicePageContent);
+  // Invoice Number
+  let invoiceNumber = '';
+  const invoiceNumberSpan = root.querySelector('span#invoice-number');
+  if (invoiceNumberSpan) {
+    invoiceNumber = invoiceNumberSpan.text.trim();
+  } else {
+    const fallbackMatch = invoicePageContent.match(/[A-Z]{2,5}-\d{3,}/);
+    if (fallbackMatch) invoiceNumber = fallbackMatch[0];
+  }
+
+  // Helper to extract value after <span class="bold">Label:</span>
+  function extractAfterBold(root: any, label: string): string {
+    const spans = root.querySelectorAll('span.bold');
+    for (const span of spans) {
+      if (span.text.trim().replace(/\s+/g, ' ') === label) {
+        // Parent <p> contains the value after the span
+        const parentP = span.parentNode;
+        if (parentP && parentP.text) {
+          // Remove label from parent text
+          return parentP.text.replace(label, '').trim();
+        }
+      }
+    }
+    return '';
+  }
+
+  // Invoice Date
+  let invoiceDate = extractAfterBold(root, 'Invoice Date:');
+  // Fallback: regex
+  if (!invoiceDate) {
+    const invoiceDateMatch = invoicePageContent.match(/Invoice Date:\s*([\d]{2}-[\d]{2}-[\d]{4})/);
+    if (invoiceDateMatch) invoiceDate = invoiceDateMatch[1];
+  }
+
+  // Due Date
+  let dueDate = extractAfterBold(root, 'Due Date:');
+  if (!dueDate) {
+    const dueDateMatch = invoicePageContent.match(/Due Date:\s*([\d]{2}-[\d]{2}-[\d]{4})/);
+    if (dueDateMatch) dueDate = dueDateMatch[1];
+  }
+
+  // Sales Agent
+  let salesAgent = extractAfterBold(root, 'Sale Agent:');
+  if (!salesAgent) {
+    const salesAgentMatch = invoicePageContent.match(/Sale Agent:\s*([A-Za-z .]+)/);
+    if (salesAgentMatch) salesAgent = salesAgentMatch[1].trim();
+  }
+
+  // Total
+  let invoiceTotal = '';
+  try {
+    if (!page.isClosed()) {
+      // Find all rows containing 'Total' (but not 'Sub Total', 'Grand Total', etc.) and extract currency value
+      const totalRows = await page.locator('tr:has-text("Total")').all();
+      let bestTotal = '';
+      for (const row of totalRows) {
+        const rowText = await row.textContent();
+        if (rowText && /Total/i.test(rowText) && !/Sub Total|Grand Total/i.test(rowText)) {
+          const directMatch = rowText.match(/Total[^\d]*(\d{1,3}(,\d{3})*(\.\d{2}))/);
+          if (directMatch) {
+            bestTotal = directMatch[1];
+            break;
+          }
+          const currencyMatches = rowText.match(/\d{1,3}(,\d{3})*(\.\d{2})?/g);
+          if (!bestTotal && currencyMatches && currencyMatches.length > 0) {
+            bestTotal = currencyMatches[0];
+          }
+        }
+      }
+      if (!bestTotal) {
+        const totalLabelRegex = /Total[^\d]*(\d{1,3}(,\d{3})*(\.\d{2}))/i;
+        const match = invoicePageContent.match(totalLabelRegex);
+        if (match) bestTotal = match[1];
+      }
+      invoiceTotal = bestTotal;
+    }
+  } catch (err) {
+    logger('WARN', 'Could not find Invoice total:', err);
+  }
+
+  // Write to abis_execution_details.json
+  try {
+    const detailsJson = readAbisExecutionDetails();
+    detailsJson.invoice = detailsJson.invoice || {};
+    detailsJson.invoice.invoiceNumber = invoiceNumber;
+    detailsJson.invoice.invoiceDate = invoiceDate;
+    detailsJson.invoice.dueDate = dueDate;
+    detailsJson.invoice.salesAgent = salesAgent;
+    detailsJson.invoice.total = invoiceTotal;
+    writeAbisExecutionDetails(detailsJson);
+    logger('INFO', 'Invoice details updated in abis_execution_details.json:', { invoiceNumber, invoiceDate, dueDate, salesAgent, invoiceTotal });
+    if (!invoiceNumber || !invoiceDate || !dueDate || !salesAgent || !invoiceTotal) {
+      logger('WARN', `Invoice details missing: invoiceNumber='${invoiceNumber}', invoiceDate='${invoiceDate}', dueDate='${dueDate}', salesAgent='${salesAgent}', total='${invoiceTotal}'. Diagnostics saved.`);
+      if (!page.isClosed()) {
+        await page.screenshot({ path: 'invoice-details-missing.png', fullPage: true });
+        require('fs').writeFileSync('invoice-details-missing.html', invoicePageContent);
+      }
+    }
+  } catch (err) {
+    logger('ERROR', 'Error updating Invoice details in abis_execution_details.json:', err);
+  }
 } catch (err) {
   logger('ERROR', 'Error during Convert to invoice workflow:', err);
-  await page.screenshot({ path: 'convert-to-invoice-failed.png', fullPage: true });
-  require('fs').writeFileSync('convert-to-invoice-failed.html', await page.content());
+  try {
+    if (!page.isClosed()) {
+      await page.screenshot({ path: 'convert-to-invoice-failed.png', fullPage: true });
+      require('fs').writeFileSync('convert-to-invoice-failed.html', await page.content());
+    }
+  } catch {}
   throw err;
 }
-await page.reload();
-await page.waitForTimeout(5000);
+// Removed waitForTimeout after page/browser close to avoid error
+
+// ...existing code...
 });
