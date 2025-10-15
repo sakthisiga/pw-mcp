@@ -1620,6 +1620,137 @@ try {
   ]);
   saveSuccess = true;
   logger('INFO', 'Proforma Save success confirmed by toast, navigation, or success message.');
+  // --- Capture Proforma details after save ---
+  // --- Capture Proforma details after save ---
+  await page.waitForTimeout(2000); // Wait for UI update
+  await page.waitForTimeout(2000); // Wait for UI update
+  const pageContent = await page.content();
+  // Save Proforma page HTML for diagnostics
+  require('fs').writeFileSync('proforma-page-debug.html', pageContent);
+  // Proforma number (starts with EST-)
+  let proformaNumber = '';
+  const proformaMatch = pageContent.match(/EST-\d+/);
+  if (proformaMatch) proformaNumber = proformaMatch[0];
+  // Proforma date
+  let proformaDate = '';
+  try {
+    // Try input, then visible text, then fallback to regex
+    const dateInput = page.locator('input[name="date"], input#date');
+    if (await dateInput.count() && await dateInput.isVisible()) {
+      proformaDate = await dateInput.inputValue();
+    } else {
+      // Try to find date in visible spans/divs
+      const dateText = await page.locator('span:has-text("Date"), div:has-text("Date")').first().innerText();
+      if (dateText) proformaDate = dateText.replace(/[^\d-\/]/g, '');
+    }
+    if (!proformaDate) {
+      // Fallback: regex from page content
+      const dateMatch = pageContent.match(/Date\s*[:=]\s*([\d\/-]+)/i);
+      if (dateMatch) proformaDate = dateMatch[1];
+    }
+  } catch (err) {
+    logger('WARN', 'Could not find Proforma date:', err);
+  }
+  // Expiry date
+  let expiryDate = '';
+  try {
+    // Try input field first
+    const expiryInput = page.locator('input[name="expiry_date"], input#expiry_date');
+    if (await expiryInput.count() && await expiryInput.isVisible()) {
+      expiryDate = await expiryInput.inputValue();
+    }
+    // Try to find expiry date by label context (table or summary)
+    if (!expiryDate) {
+      const expiryLabelLocator = page.locator('text=Expiry Date');
+      if (await expiryLabelLocator.count()) {
+        // Look for sibling or next cell with date
+        const expiryValueLocator = expiryLabelLocator.locator('xpath=following-sibling::*[1]');
+        if (await expiryValueLocator.count()) {
+          const expiryValueText = await expiryValueLocator.textContent();
+          const dateMatch = expiryValueText && expiryValueText.match(/(\d{2}-\d{2}-\d{4})/);
+          if (dateMatch) expiryDate = dateMatch[1];
+        }
+        // Fallback: search parent row for date
+        if (!expiryDate) {
+          const expiryRow = expiryLabelLocator.locator('xpath=ancestor::tr[1]');
+          if (await expiryRow.count()) {
+            const expiryRowText = await expiryRow.textContent();
+            const dateMatch = expiryRowText && expiryRowText.match(/(\d{2}-\d{2}-\d{4})/);
+            if (dateMatch) expiryDate = dateMatch[1];
+          }
+        }
+      }
+    }
+    // Fallback: strict date regex from page content, pick the date closest to 'Expiry' label
+    if (!expiryDate) {
+      const expiryLabelIndex = pageContent.indexOf('Expiry');
+      const dateRegex = /(\d{2}-\d{2}-\d{4})/g;
+      let match;
+      let closestDate = '';
+      let closestDistance = Infinity;
+      while ((match = dateRegex.exec(pageContent)) !== null) {
+        const idx = match.index;
+        const dist = Math.abs(idx - expiryLabelIndex);
+        if (dist < closestDistance) {
+          closestDistance = dist;
+          closestDate = match[1];
+        }
+      }
+      if (closestDate) expiryDate = closestDate;
+    }
+  } catch (err) {
+    logger('WARN', 'Could not find Expiry date:', err);
+  }
+  // Total
+  let total = '';
+  try {
+    // Find all rows containing 'Total' (but not 'Sub Total', 'Grand Total', etc.) and extract currency value
+    const totalRows = await page.locator('tr:has-text("Total")').all();
+    let bestTotal = '';
+    for (const row of totalRows) {
+      const rowText = await row.textContent();
+      if (rowText && /Total/i.test(rowText) && !/Sub Total|Grand Total/i.test(rowText)) {
+        // Match 'Total' followed by currency value (e.g. 'Total Rs.1,200.00')
+        const directMatch = rowText.match(/Total[^\d]*(\d{1,3}(,\d{3})*(\.\d{2}))/);
+        if (directMatch) {
+          bestTotal = directMatch[1];
+          break;
+        }
+        // Otherwise, pick the first currency value in the row
+        const currencyMatches = rowText.match(/\d{1,3}(,\d{3})*(\.\d{2})?/g);
+        if (!bestTotal && currencyMatches && currencyMatches.length > 0) {
+          bestTotal = currencyMatches[0];
+        }
+      }
+    }
+    // Fallback: strict currency regex from page content, pick the value immediately after 'Total' label (not Sub/Grand)
+    if (!bestTotal) {
+      const totalLabelRegex = /Total[^\d]*(\d{1,3}(,\d{3})*(\.\d{2}))/i;
+      const match = pageContent.match(totalLabelRegex);
+      if (match) bestTotal = match[1];
+    }
+    total = bestTotal;
+  } catch (err) {
+    logger('WARN', 'Could not find Proforma total:', err);
+  }
+  // Write to abis_execution_details.json
+  try {
+    const detailsJson = readAbisExecutionDetails();
+    detailsJson.proforma = detailsJson.proforma || {};
+    detailsJson.proforma.proformaNumber = proformaNumber;
+    detailsJson.proforma.proformaDate = proformaDate;
+    detailsJson.proforma.expiryDate = expiryDate;
+    detailsJson.proforma.total = total;
+    writeAbisExecutionDetails(detailsJson);
+    logger('INFO', 'Proforma details updated in abis_execution_details.json:', { proformaNumber, proformaDate, expiryDate, total });
+    if (!proformaDate || !expiryDate || !total) {
+      logger('WARN', `Proforma details missing: proformaDate='${proformaDate}', expiryDate='${expiryDate}', total='${total}'. Diagnostics saved.`);
+      await page.screenshot({ path: 'proforma-details-missing.png', fullPage: true });
+      require('fs').writeFileSync('proforma-details-missing.html', pageContent);
+    }
+  } catch (err) {
+    logger('ERROR', 'Error updating Proforma details in abis_execution_details.json:', err);
+  }
 } catch (err) {
   logger('WARN', 'No success indicator found after Save. Saving diagnostics.');
   await page.screenshot({ path: 'proforma-save-failed.png', fullPage: true });
