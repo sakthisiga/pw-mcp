@@ -1465,4 +1465,26 @@ test('ABIS Sanity', async ({ page }) => {
     require('fs').writeFileSync('pre-payment-modal-not-closed.html', html);
     throw new Error('Pre Payment modal did not close after Save. Screenshot and HTML saved for debugging.');
   }
+  // After Save, capture Prepayment number from page content or modal
+await page.waitForTimeout(2000); // Wait for UI update after Save
+let prepaymentNumber = '';
+const pageContentAfterPrepayment = await page.content();
+const prepaymentMatch = pageContentAfterPrepayment.match(/PP-\d+/);
+if (prepaymentMatch) {
+  prepaymentNumber = prepaymentMatch[0];
+  logger('INFO', 'Captured Prepayment number:', prepaymentNumber);
+} else {
+  logger('WARN', 'Prepayment number not found in page content after Save.');
+}
+
+// Update abis_execution_details.json under the corresponding service
+try {
+  const detailsJson = readAbisExecutionDetails();
+  if (!detailsJson.service) detailsJson.service = {};
+  detailsJson.service.prepaymentNumber = prepaymentNumber;
+  writeAbisExecutionDetails(detailsJson);
+  logger('INFO', 'Prepayment number updated in abis_execution_details.json:', prepaymentNumber);
+} catch (err) {
+  logger('ERROR', 'Error updating Prepayment number in abis_execution_details.json:', err);
+}
 });
