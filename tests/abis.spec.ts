@@ -327,7 +327,6 @@ test('ABIS Sanity', async ({ page }) => {
 
   // Save lead details to a JSON file
   const leadDetails = { name, email, phone };
-  writeAbisExecutionDetails(leadDetails);
     
   // Step: Click "More" in the dropdown and select "Mark as Sent"
   await page.waitForSelector('button:has-text("More")');
@@ -441,7 +440,6 @@ test('ABIS Sanity', async ({ page }) => {
   // Removed pause for normal test execution
 
   // Debug: log Convert to Customer modal HTML before filling PAN/GST
-  // ...existing code...
 
   // Wait for the Save button with id 'custformsubmit' to be visible and click it
   // Robustly fill PAN and GST fields before saving
@@ -518,6 +516,18 @@ test('ABIS Sanity', async ({ page }) => {
   await expect(page.locator('a[data-group="profile"]')).toBeVisible({ timeout: 15000 });
   // Customer conversion screenshot
   // Removed routine customer conversion screenshot for optimization
+  // --- Capture Client ID from page content ---
+  // Client ID starts with "#" and is a number at the beginning of the page
+  await page.waitForTimeout(1000); // Wait for page to settle after conversion
+  let clientId = '';
+  const pageText = await page.evaluate(() => document.body.innerText);
+  const clientIdMatch = pageText.match(/^\s*#\d+/m);
+  if (clientIdMatch) {
+    clientId = clientIdMatch[0].trim();
+    logger('INFO', 'Captured Client ID:', clientId);
+  } else {
+    logger('WARN', 'Client ID not found at beginning of page.');
+  }
 
 
   // Next workflow: Click the Profile tab
@@ -600,6 +610,7 @@ test('ABIS Sanity', async ({ page }) => {
       services: selectedServices
     },
     company: {
+      clientId,
       company,
       pan: panValue,
       gst: gstValue
@@ -1487,4 +1498,137 @@ try {
 } catch (err) {
   logger('ERROR', 'Error updating Prepayment number in abis_execution_details.json:', err);
 }
+
+try {
+  const detailsJson3 = readAbisExecutionDetails();
+  const clientIdRaw = detailsJson3.company?.clientId || '';
+  const clientId = clientIdRaw.replace(/^#/, ''); // Remove leading '#' if present
+  if (!clientId) {
+    throw new Error('clientId not found in abis_execution_details.json');
+  }
+  logger('STEP', `Navigating to client page for clientId: ${clientId}`);
+  await page.goto(`${APP_BASE_URL}/clients/client/${clientId}`);
+  logger('STEP', 'Navigated to client page');
+
+  // Click "Proforma" tab/link in the customer page (use exact match to avoid strict mode violation)
+  const proformaTab = page.getByRole('link', { name: 'Proforma', exact: true });
+  await expect(proformaTab).toBeVisible({ timeout: 10000 });
+  await proformaTab.click();
+  logger('STEP', 'Clicked Proforma tab in customer page');
+} catch (err) {
+  logger('ERROR', 'Error navigating to client page or clicking Proforma:', err);
+  throw err;
+}
+
+// Click "Create New Proforma" (as <a> link with class and text)
+const createProformaLink = page.locator('a.btn.btn-primary.mbot15', { hasText: 'Create New Proforma' });
+await expect(createProformaLink).toBeVisible({ timeout: 10000 });
+await Promise.all([
+  page.waitForNavigation({ timeout: 10000 }),
+  createProformaLink.click()
+]);
+logger('STEP', 'Clicked Create New Proforma and navigated to Proforma creation page');
+
+// Interact with Proforma creation page directly
+await page.waitForTimeout(3000); // Wait extra for page load
+const detailsJson4 = readAbisExecutionDetails();
+const billingCompany = detailsJson4.proposal?.services?.[0]?.company || detailsJson4.company?.company || '';
+const billingFromDropdown = page.locator('select[name="c_id"], #mastercompany');
+if (await billingFromDropdown.isVisible({ timeout: 10000 })) {
+  await billingFromDropdown.selectOption({ label: billingCompany });
+  logger('STEP', `Selected Billing From company: ${billingCompany}`);
+} else {
+  const html = await page.content();
+  require('fs').writeFileSync('proforma-page-debug.html', html);
+  logger('WARN', 'Billing From dropdown not found or not visible. Saved HTML for diagnostics. Skipping dropdown step.');
+}
+
+// Click "View Services" (if present)
+const viewServicesBtn = page.getByRole('button', { name: /View Services/i });
+if (await viewServicesBtn.isVisible({ timeout: 5000 })) {
+  await viewServicesBtn.click();
+  logger('STEP', 'Clicked View Services');
+  // Wait for services modal to appear and try to click "Add"
+  const servicesModal = page.locator('.modal:visible').filter({ hasText: 'Services' });
+  await expect(servicesModal).toBeVisible({ timeout: 10000 });
+  const addServiceBtn = servicesModal.locator('a.btn.addtoestimate');
+  try {
+    await expect(addServiceBtn).toBeVisible({ timeout: 10000 });
+  await addServiceBtn.click();
+  logger('STEP', 'Clicked Add in services modal');
+  // Diagnostics: log items/services section after Add
+  const itemsSection = page.locator('.panel_s.accounting-template');
+  const itemsHtml = await itemsSection.innerHTML();
+  require('fs').writeFileSync('proforma-items-section-debug.html', itemsHtml);
+  const itemsButtons = await itemsSection.locator('button').allTextContents();
+  const itemsLinks = await itemsSection.locator('a').allTextContents();
+  // logger('INFO', `Items section after Add: Saved HTML to proforma-items-section-debug.html. Buttons: ${JSON.stringify(itemsButtons)}, Links: ${JSON.stringify(itemsLinks)}`);
+  } catch (err) {
+    // Diagnostics: save modal HTML and log all visible buttons
+    const modalHtml = await servicesModal.innerHTML();
+    require('fs').writeFileSync('service-modal-debug.html', modalHtml);
+    const allLinks = await servicesModal.locator('a').allTextContents();
+    logger('ERROR', `Add link not found/visible in Services modal. All visible links: ${JSON.stringify(allLinks)}`);
+    logger('ERROR', 'Saved modal HTML to service-modal-debug.html for diagnostics.');
+    throw err;
+  }
+}
+
+// Make required fields editable before filling
+await page.evaluate(() => {
+  document.querySelectorAll('.panel_s.accounting-template input[readonly], .panel_s.accounting-template textarea[readonly]').forEach(el => {
+    el.removeAttribute('readonly');
+  });
+});
+// Fill required fields in items table
+const itemsSection = page.locator('.panel_s.accounting-template');
+// const rateInput = itemsSection.locator('input[name="rate"]');
+// const quantityInput = itemsSection.locator('input[name="quantity"]');
+// const descInput = itemsSection.locator('textarea[name="description"]');
+// await rateInput.fill('100');
+// await quantityInput.fill('1');
+// await descInput.fill('Service Description');
+// Click tick mark button
+const tickBtn = itemsSection.locator('button.btn-primary:has(i.fa-check)');
+try {
+  await expect(tickBtn).toBeVisible({ timeout: 10000 });
+  await tickBtn.click();
+  logger('STEP', 'Clicked blue tick mark button in Proforma page (by class and icon)');
+} catch (err) {
+  // Diagnostics: save Proforma page HTML and log all visible buttons/links
+  const pageHtml = await page.content();
+  require('fs').writeFileSync('proforma-tickmark-debug.html', pageHtml);
+  const allButtons = await page.locator('button').allTextContents();
+  const allLinks = await page.locator('a').allTextContents();
+  logger('ERROR', `Tick mark button (.btn-primary .fa-check) not found/visible. All visible buttons: ${JSON.stringify(allButtons)}, links: ${JSON.stringify(allLinks)}`);
+  logger('ERROR', 'Saved Proforma page HTML to proforma-tickmark-debug.html for diagnostics.');
+  throw err;
+}
+// Wait for Save button to be enabled and click after tick mark
+const saveBtnAfterTick = page.getByRole('button', { name: /Save/i });
+await expect(saveBtnAfterTick).toBeEnabled({ timeout: 10000 });
+await saveBtnAfterTick.click();
+logger('STEP', 'Clicked Save in Proforma page');
+// Wait for success toast, navigation, or confirmation after Save
+let saveSuccess = false;
+try {
+  // Wait for a success toast or navigation (adjust selectors as needed)
+  await Promise.race([
+    page.waitForSelector('.toast-success, .alert-success, .notification-success', { timeout: 10000 }),
+    page.waitForNavigation({ timeout: 10000 }),
+    page.waitForSelector('text=Proforma created successfully', { timeout: 10000 })
+  ]);
+  saveSuccess = true;
+  logger('INFO', 'Proforma Save success confirmed by toast, navigation, or success message.');
+} catch (err) {
+  logger('WARN', 'No success indicator found after Save. Saving diagnostics.');
+  await page.screenshot({ path: 'proforma-save-failed.png', fullPage: true });
+  require('fs').writeFileSync('proforma-save-failed.html', await page.content());
+}
+if (!saveSuccess) {
+  throw new Error('Proforma Save did not trigger success indicator. See diagnostics.');
+}
+
+// After Save, do not click Save again; the button may not exist after successful submission
+// Success is already confirmed above; skip redundant Save button click and check
 });
