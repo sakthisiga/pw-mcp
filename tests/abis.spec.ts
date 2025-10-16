@@ -613,9 +613,9 @@ test('ABIS Sanity', async ({ page }) => {
       clientId,
       company,
       pan: panValue,
-      gst: gstValue
-    },
-    customerAdmin: selectedOption?.trim() || ''
+      gst: gstValue,
+      customerAdmin: selectedOption?.trim() || ''
+    }
   };
   writeAbisExecutionDetails(detailsJson);
 
@@ -1341,7 +1341,7 @@ test('ABIS Sanity', async ({ page }) => {
         }, { timeout: 7000 });
         // Log available options for diagnostics
         const options = await page.$$eval('#project_ajax_search_wrapper .inner.open ul li a span.text', nodes => nodes.map(n => n.textContent));
-        console.log(`Service options found for space search:`, options);
+        // console.log(`Service options found for space search:`, options);
         // Click the first non-empty option
         const firstOption = page.locator('#project_ajax_search_wrapper .inner.open ul li a span.text').filter({ hasText: /.+/ }).first();
         await firstOption.click();
@@ -1783,7 +1783,6 @@ try {
     detailsJson.proforma.expiryDate = expiryDate;
     detailsJson.proforma.total = total;
     writeAbisExecutionDetails(detailsJson);
-    logger('INFO', 'Proforma details updated in abis_execution_details.json:', { proformaNumber, proformaDate, expiryDate, total });
     if (!proformaDate || !expiryDate || !total) {
       logger('WARN', `Proforma details missing: proformaDate='${proformaDate}', expiryDate='${expiryDate}', total='${total}'. Diagnostics saved.`);
       await page.screenshot({ path: 'proforma-details-missing.png', fullPage: true });
@@ -1936,7 +1935,6 @@ try {
     detailsJson.invoice.salesAgent = salesAgent;
     detailsJson.invoice.total = invoiceTotal;
     writeAbisExecutionDetails(detailsJson);
-    logger('INFO', 'Invoice details updated in abis_execution_details.json:', { invoiceNumber, invoiceDate, dueDate, salesAgent, invoiceTotal });
     if (!invoiceNumber || !invoiceDate || !dueDate || !salesAgent || !invoiceTotal) {
       logger('WARN', `Invoice details missing: invoiceNumber='${invoiceNumber}', invoiceDate='${invoiceDate}', dueDate='${dueDate}', salesAgent='${salesAgent}', total='${invoiceTotal}'. Diagnostics saved.`);
       if (!page.isClosed()) {
@@ -1958,6 +1956,280 @@ try {
   throw err;
 }
 // Removed waitForTimeout after page/browser close to avoid error
+const applyCreditsLink = page.locator('a[data-toggle="modal"][data-target="#apply_credits"]', { hasText: 'Apply Credits' });
+await expect(applyCreditsLink).toBeVisible({ timeout: 10000 });
+await applyCreditsLink.click();
+logger('STEP', 'Clicked Apply Credits link');
 
-// ...existing code...
+// Wait for Apply Credits modal to appear
+const applyCreditsModal = page.locator('#apply_credits');
+await expect(applyCreditsModal).toBeVisible({ timeout: 10000 });
+
+// Wait for any input to appear inside the modal
+await page.waitForTimeout(500); // Give time for modal animation/render
+let foundInput = false;
+for (let i = 0; i < 20; i++) {
+  const inputCount = await applyCreditsModal.locator('input').count();
+  if (inputCount > 0) {
+    foundInput = true;
+    break;
+  }
+  await page.waitForTimeout(500);
+}
+if (!foundInput) {
+  const modalHtml = await applyCreditsModal.innerHTML();
+  require('fs').writeFileSync('apply-credits-modal-debug.html', modalHtml);
+  logger('ERROR', 'No input found in Apply Credits modal after waiting. Saved HTML for diagnostics.');
+  throw new Error('No input found in Apply Credits modal.');
+}
+// Log all input attributes for diagnostics
+const inputHandles = await applyCreditsModal.locator('input').elementHandles();
+const inputAttrs = [];
+for (const handle of inputHandles) {
+  inputAttrs.push({
+    name: await handle.getAttribute('name'),
+    id: await handle.getAttribute('id'),
+    type: await handle.getAttribute('type'),
+    placeholder: await handle.getAttribute('placeholder'),
+    value: await handle.getAttribute('value'),
+    visible: !!(await handle.isVisible())
+  });
+}
+// Use the first visible input
+let amountInput = null;
+for (const handle of inputHandles) {
+  if (await handle.isVisible()) {
+    amountInput = page.locator(`#apply_credits input[name='${await handle.getAttribute('name')}']`);
+    break;
+  }
+}
+if (!amountInput) {
+  amountInput = applyCreditsModal.locator('input').first();
+}
+await expect(amountInput).toBeVisible({ timeout: 5000 });
+await amountInput.fill('100');
+logger('STEP', 'Entered 100 in Amount to Credit');
+
+// Click "Apply" button in modal
+const applyBtn = applyCreditsModal.locator('button, a', { hasText: 'Apply' });
+await expect(applyBtn).toBeVisible({ timeout: 5000 });
+await applyBtn.click();
+logger('STEP', 'Clicked Apply in Apply Credits modal');
+
+
+// Payment section (panel-based, not modal)
+const paymentBtn = page.locator('a.btn.btn-primary', { hasText: 'Payment' });
+await expect(paymentBtn).toBeVisible({ timeout: 10000 });
+await paymentBtn.click();
+logger('STEP', 'Clicked Payment button');
+
+// Wait for Payment panel to appear (robust)
+let paymentPanel = null;
+for (let i = 0; i < 20; i++) {
+  // Try #record_payment_form first
+  const panel = page.locator('#record_payment_form');
+  if (await panel.count() && await panel.isVisible()) {
+    paymentPanel = panel;
+    break;
+  }
+  // Try heading
+  const heading = page.getByRole('heading', { name: /Record Payment/i });
+  if (await heading.count() && await heading.isVisible()) {
+    // Find nearest parent form or panel
+    const panelHandle = await heading.elementHandle();
+    if (panelHandle) {
+      // Try to find parent form
+      const formHandle = await panelHandle.evaluateHandle(node => node.closest('form'));
+      if (formHandle) {
+        paymentPanel = page.locator('form#record_payment_form');
+        if (await paymentPanel.count() && await paymentPanel.isVisible()) break;
+      }
+      // Fallback: parent div with id
+      const divHandle = await panelHandle.evaluateHandle(node => node.closest('div.panel_s, div.panel-body, div'));
+      if (divHandle) {
+        const divId = await divHandle.evaluate(node => node ? node.id : '');
+        if (divId && divId.trim().length > 0) {
+          paymentPanel = page.locator(`#${divId}`);
+          if (await paymentPanel.count() && await paymentPanel.isVisible()) break;
+        } else {
+          // Fallback: use the closest parent .panel_s or .panel-body containing the heading
+          // Find all .panel_s and .panel-body elements containing the heading
+          const panels = page.locator('.panel_s, .panel-body').filter({ has: heading });
+          const panelCount = await panels.count();
+          if (panelCount === 1 && await panels.first().isVisible()) {
+            paymentPanel = panels.first();
+            break;
+          } else if (panelCount > 1) {
+            // Try to pick the first visible one
+            for (let idx = 0; idx < panelCount; idx++) {
+              const candidate = panels.nth(idx);
+              if (await candidate.isVisible()) {
+                paymentPanel = candidate;
+                break;
+              }
+            }
+            if (paymentPanel) break;
+          }
+        }
+      }
+    }
+  }
+  await page.waitForTimeout(500);
+}
+if (!paymentPanel) {
+  // Diagnostics: log all panels and save page HTML
+  const pageHtml = await page.content();
+  require('fs').writeFileSync('payment-panel-debug.html', pageHtml);
+  logger('ERROR', 'No visible payment panel found for Payment. Saved HTML for diagnostics.');
+  throw new Error('No visible Payment panel found. Saved HTML for diagnostics.');
+}
+await expect(paymentPanel).toBeVisible({ timeout: 10000 });
+
+// Select random Payment Mode
+const paymentModeDropdown = paymentPanel.locator('select[name="paymentmode"]');
+await expect(paymentModeDropdown).toBeVisible({ timeout: 10000 });
+const paymentModes = await paymentModeDropdown.locator('option').allTextContents();
+const validModes = paymentModes.filter(opt => opt && opt.trim().length > 0 && !opt.toLowerCase().includes('select'));
+const randomMode = validModes[Math.floor(Math.random() * validModes.length)];
+await paymentModeDropdown.selectOption({ label: randomMode });
+logger('INFO', `Selected Payment Mode: ${randomMode}`);
+
+// Enter random 12-digit alphanumeric Transaction ID
+function randomTxnId(len = 12) {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let out = '';
+  for (let i = 0; i < len; i++) out += chars[Math.floor(Math.random() * chars.length)];
+  return out;
+}
+const txnId = randomTxnId();
+const txnInput = paymentPanel.locator('input[name="transactionid"], input[name="transaction_id"], input[placeholder*="Transaction"]');
+await expect(txnInput).toBeVisible({ timeout: 10000 });
+await txnInput.fill(txnId);
+logger('INFO', `Entered Transaction ID: ${txnId}`);
+
+// Click Save button
+const savePaymentBtn = paymentPanel.locator('button, a', { hasText: 'Save' });
+await expect(savePaymentBtn).toBeVisible({ timeout: 10000 });
+await savePaymentBtn.click();
+logger('STEP', 'Clicked Save in Payment panel');
+
+try {
+  // Click "More" dropdown (exclude "Load More" buttons)
+  let moreDropdownClicked = false;
+  for (let i = 0; i < 5; i++) {
+    const moreDropdowns = await page.locator('button, a', { hasText: 'More' }).elementHandles();
+    for (const handle of moreDropdowns) {
+      const text = (await handle.textContent())?.trim() || '';
+      if (text === 'More') {
+        const box = await handle.boundingBox();
+        if (box && box.width > 0 && box.height > 0) {
+          await handle.hover();
+          await handle.click();
+          moreDropdownClicked = true;
+          logger('STEP', 'Hovered and clicked More dropdown for Approve Payment');
+          break;
+        }
+      }
+    }
+    if (moreDropdownClicked) break;
+    await page.waitForTimeout(1000);
+  }
+  if (!moreDropdownClicked) {
+    logger('WARN', 'Could not find or click More dropdown for Approve Payment.');
+    throw new Error('More dropdown not found or not clickable after retries.');
+  }
+
+    // Diagnostic: log DOM after clicking More
+    // const domHtml = await page.content();
+    // logger('INFO', 'DOM after clicking More:', domHtml);
+    // Wait for Approve Payment button to appear (robust)
+    const approvePaymentLocator = page.locator('a, button', { hasText: 'Approve Payment' });
+    try {
+      await approvePaymentLocator.first().waitFor({ state: 'visible', timeout: 5000 });
+    } catch {
+      logger('WARN', 'Approve Payment button did not become visible after clicking More.');
+    }
+
+  // Click "Approve Payment" in dropdown (robust: only click visible)
+  let clicked = false;
+  for (let attempt = 0; attempt < 5 && !clicked; attempt++) {
+    const approvePaymentBtns = page.locator('a, button', { hasText: 'Approve Payment' });
+    const count = await approvePaymentBtns.count();
+    for (let i = 0; i < count; i++) {
+      const btn = approvePaymentBtns.nth(i);
+      const visible = await btn.isVisible();
+      const enabled = await btn.isEnabled();
+      const html = await btn.evaluate(node => node.outerHTML);
+      // logger('INFO', `Approve Payment button [${i}] visible: ${visible}, enabled: ${enabled}, html: ${html}`);
+      if (visible && enabled) {
+        await btn.click();
+        clicked = true;
+        logger('STEP', 'Clicked Approve Payment in More dropdown');
+        break;
+      }
+    }
+    if (!clicked) {
+      logger('WARN', `Attempt ${attempt + 1}: No visible Approve Payment button, retrying after 1s...`);
+      await page.waitForTimeout(1000);
+      // Try clicking More again in case dropdown closed
+      const moreDropdowns = await page.locator('button, a', { hasText: 'More' }).elementHandles();
+      for (const handle of moreDropdowns) {
+        const text = (await handle.textContent())?.trim() || '';
+        if (text === 'More') {
+          const box = await handle.boundingBox();
+          if (box && box.width > 0 && box.height > 0) {
+            await handle.hover();
+            await handle.click();
+            logger('STEP', 'Re-clicked More dropdown for Approve Payment (retry)');
+            break;
+          }
+        }
+      }
+    }
+  }
+  if (!clicked) {
+    // // Log DOM for debugging
+    // const domHtml = await page.content();
+    // logger('ERROR', 'No Approve Payment button could be clicked after retries. DOM:', domHtml);
+    throw new Error('No visible Approve Payment button found after opening More dropdown.');
+  }
+
+  // Wait for popup and click "Yes, approve it!" button
+  const yesApproveBtn = page.locator('button, a', { hasText: 'Yes, approve it!' });
+  await expect(yesApproveBtn).toBeVisible({ timeout: 10000 });
+  await yesApproveBtn.click();
+  logger('STEP', 'Clicked Yes, approve it! in Approve Payment popup');
+  await page.waitForTimeout(2000);
+} catch (err) {
+  logger('ERROR', 'Error during Approve Payment workflow:', err);
+  throw err;
+}
+
+// Capture payment ID from the URL and update abis_execution_details.json
+const paymentUrl = page.url();
+const paymentIdMatch = paymentUrl.match(/(\d+)(?!.*\d)/);
+const paymentId = paymentIdMatch ? paymentIdMatch[1] : '';
+if (paymentId) {
+  try {
+    const detailsJson = readAbisExecutionDetails();
+    detailsJson.payment = detailsJson.payment || {};
+    detailsJson.payment.paymentId = paymentId;
+    writeAbisExecutionDetails(detailsJson);
+    logger('INFO', 'Payment ID captured and updated in abis_execution_details.json:', paymentId);
+  } catch (err) {
+    logger('ERROR', 'Error updating payment ID in abis_execution_details.json:', err);
+  }
+} else {
+  logger('WARN', 'Payment ID not found in URL:', paymentUrl);
+}
+
+// Find the element containing "Payment for Invoice" text
+const paymentForInvoiceLabel = page.locator('text=Payment for Invoice');
+// Find the <a> tag next to it (robust: search parent then child)
+const parent = paymentForInvoiceLabel.locator('..');
+const paymentForInvoiceLink = parent.locator('a');
+await expect(paymentForInvoiceLink.first()).toBeVisible({ timeout: 10000 });
+await paymentForInvoiceLink.first().click();
+await page.waitForLoadState('networkidle');
+logger('STEP', 'Clicked hyperlink next to Payment for Invoice and waited for page to load');
 });
