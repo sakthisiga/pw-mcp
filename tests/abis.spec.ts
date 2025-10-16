@@ -113,7 +113,9 @@ function randomString(length: number) {
 
 test('ABIS Sanity', async ({ page }) => {
   test.setTimeout(300000); // 5 minutes
-  logger('INFO', '--- Starting ABIS Sanity Test ---');
+  logger('INFO', 'Starting ABIS Sanity Test');
+  logger('INFO', 'Using APP_BASE_URL:', APP_BASE_URL);
+  logger('INFO', 'Using E2E_USER:', E2E_USER);
   // Login
   logger('STEP', 'Login page navigation');
   await page.goto(APP_BASE_URL!);
