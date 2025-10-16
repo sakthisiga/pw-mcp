@@ -1,3 +1,22 @@
+import path from 'path';
+
+const detailsFilePath = path.resolve(__dirname, '../abis_execution_details.json');
+
+function ensureAbisExecutionDetailsFile() {
+  if (!fs.existsSync(detailsFilePath)) {
+    fs.writeFileSync(detailsFilePath, JSON.stringify({}, null, 2));
+  }
+}
+
+function readAbisExecutionDetails() {
+  ensureAbisExecutionDetailsFile();
+  return JSON.parse(fs.readFileSync(detailsFilePath, 'utf8'));
+}
+
+function writeAbisExecutionDetails(data: any) {
+  ensureAbisExecutionDetailsFile();
+  fs.writeFileSync(detailsFilePath, JSON.stringify(data, null, 2));
+}
 import type { Locator, Page } from '@playwright/test';
 // Logger helper
 function logger(type: 'INFO' | 'STEP' | 'WARN' | 'ERROR', ...args: any[]) {
@@ -80,8 +99,6 @@ import { test, expect } from '@playwright/test';
 // ...existing code...
 import fs from 'fs';
 import dotenv from 'dotenv';
-import { writeAbisExecutionDetails } from '../utils/jsonWriter';
-const { readAbisExecutionDetails } = require('../utils/jsonWriter');
 // Removed require for fs as we are using ES module imports
 const faker = require('faker');
 dotenv.config();
@@ -2120,6 +2137,7 @@ try {
     const moreDropdowns = await page.locator('button, a', { hasText: 'More' }).elementHandles();
     for (const handle of moreDropdowns) {
       const text = (await handle.textContent())?.trim() || '';
+      // Exclude elements with text 'Load More'
       if (text === 'More') {
         const box = await handle.boundingBox();
         if (box && box.width > 0 && box.height > 0) {
