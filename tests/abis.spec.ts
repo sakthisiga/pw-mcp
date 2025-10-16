@@ -1594,7 +1594,14 @@ if (await viewServicesBtn.isVisible({ timeout: 5000 })) {
 }
 
 // Make required fields editable before filling
+// Patch: Remove jQuery :visible selector, use DOM visibility filter
 await page.evaluate(() => {
+  const modals = Array.from(document.querySelectorAll('.modal, .modal.show'));
+  // Only keep visible modals (cast to HTMLElement for offsetWidth/offsetHeight)
+  return modals.filter(el => {
+    const htmlEl = el as HTMLElement;
+    return !!(htmlEl.offsetWidth || htmlEl.offsetHeight || htmlEl.getClientRects().length);
+  });
   document.querySelectorAll('.panel_s.accounting-template input[readonly], .panel_s.accounting-template textarea[readonly]').forEach(el => {
     el.removeAttribute('readonly');
   });
