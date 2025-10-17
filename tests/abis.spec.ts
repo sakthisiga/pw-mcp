@@ -1,15 +1,10 @@
+import { login } from '../utils/loginHelper';
 import { readAbisExecutionDetails, writeAbisExecutionDetails } from '../utils/jsonWriteHelper';
-import type { Locator, Page } from '@playwright/test';
 import { CommonHelper } from '../utils/commonHelper';
-
-// Helper for resilient fill
-// ...existing code...
-
-
 import { test, expect } from '@playwright/test';
-// ...existing code...
 import fs from 'fs';
 import dotenv from 'dotenv';
+
 // Removed require for fs as we are using ES module imports
 const faker = require('faker');
 dotenv.config();
@@ -24,19 +19,7 @@ test('ABIS Sanity', async ({ page }) => {
   CommonHelper.logger('INFO', 'Using APP_BASE_URL:', APP_BASE_URL);
   CommonHelper.logger('INFO', 'Using E2E_USER:', E2E_USER);
   // Login
-  CommonHelper.logger('STEP', 'Login page navigation');
-  CommonHelper.logger('STEP', 'Login page navigation');
-  await page.goto(APP_BASE_URL!);
-  CommonHelper.logger('STEP', 'Filling login credentials');
-  await CommonHelper.resilientFill(page.locator('input[name="email"]'), E2E_USER!, page, 'login-email');
-  CommonHelper.logger('STEP', 'Filled email');
-  await CommonHelper.resilientFill(page.locator('input[name="password"]'), E2E_PASS!, page, 'login-password');
-  CommonHelper.logger('STEP', 'Filled password');
-  await CommonHelper.resilientClick(page.locator('button:has-text("Login")'), page, 'login-button');
-  CommonHelper.logger('STEP', 'Clicked login button');
-  await CommonHelper.resilientExpectVisible(page.locator('text=Invoices Awaiting Payment'), page, 'login-success');
-  CommonHelper.logger('STEP', 'Login success confirmed');
-  CommonHelper.logger('INFO', 'Login successful');
+  await login(page, APP_BASE_URL!, E2E_USER!, E2E_PASS!);
 
   // Navigate to leads page and click New Lead
   CommonHelper.logger('STEP', 'Navigating to leads page');
