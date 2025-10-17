@@ -5,15 +5,6 @@ import { CommonHelper } from '../utils/commonHelper';
 // Helper for resilient fill
 // ...existing code...
 
-async function resilientFill(locator: Locator, value: string, page: Page, label: string, retries = 3) {
-  await CommonHelper.resilientFill(locator, value, page, label, retries);
-}
-async function resilientClick(locator: Locator, page: Page, label: string, retries = 3) {
-  await CommonHelper.resilientClick(locator, page, label, retries);
-}
-async function resilientExpectVisible(locator: Locator, page: Page, label: string, retries = 3) {
-  await CommonHelper.resilientExpectVisible(locator, page, label, retries);
-}
 
 import { test, expect } from '@playwright/test';
 // ...existing code...
@@ -26,10 +17,6 @@ dotenv.config();
 const APP_BASE_URL = process.env.APP_BASE_URL;
 const E2E_USER = process.env.E2E_USER;
 const E2E_PASS = process.env.E2E_PASS;
-
-function randomString(length: number) {
-  return Math.random().toString(36).substring(2, 2 + length);
-}
 
 test('ABIS Sanity', async ({ page }) => {
   test.setTimeout(300000); // 5 minutes
@@ -59,15 +46,15 @@ test('ABIS Sanity', async ({ page }) => {
   CommonHelper.logger('STEP', 'Looking for New Lead link');
   const newLeadLink = page.locator('a', { hasText: 'New Lead' });
   CommonHelper.logger('STEP', 'Found New Lead link');
-  await resilientExpectVisible(newLeadLink, page, 'new-lead-link');
+  await CommonHelper.resilientExpectVisible(newLeadLink, page, 'new-lead-link');
   CommonHelper.logger('STEP', 'New Lead link visible');
-  await resilientClick(newLeadLink, page, 'new-lead-link');
+  await CommonHelper.resilientClick(newLeadLink, page, 'new-lead-link');
   CommonHelper.logger('STEP', 'Clicked New Lead link');
   CommonHelper.logger('INFO', 'Navigated to New Lead page');
 
   // Ensure form is loaded
   CommonHelper.logger('STEP', 'Waiting for lead form heading');
-  await resilientExpectVisible(page.getByRole('heading', { name: /Add new lead/i }), page, 'lead-form-heading');
+  await CommonHelper.resilientExpectVisible(page.getByRole('heading', { name: /Add new lead/i }), page, 'lead-form-heading');
   CommonHelper.logger('STEP', 'Lead form heading visible');
 
   // Fill lead details
@@ -76,11 +63,11 @@ test('ABIS Sanity', async ({ page }) => {
   const email = faker.internet.email();
   const phone = faker.phone.phoneNumber('999#######');
   const form = page.locator('#lead_form');
-  await resilientFill(form.locator('input#name'), name, page, 'lead-name');
+  await CommonHelper.resilientFill(form.locator('input#name'), name, page, 'lead-name');
   CommonHelper.logger('STEP', 'Filled lead name');
-  await resilientFill(form.locator('input#email'), email, page, 'lead-email');
+  await CommonHelper.resilientFill(form.locator('input#email'), email, page, 'lead-email');
   CommonHelper.logger('STEP', 'Filled lead email');
-  await resilientFill(form.locator('input#phonenumber'), phone, page, 'lead-phone');
+  await CommonHelper.resilientFill(form.locator('input#phonenumber'), phone, page, 'lead-phone');
   CommonHelper.logger('STEP', 'Filled lead phone');
 
   // Fill additional lead fields with random values
@@ -91,7 +78,7 @@ test('ABIS Sanity', async ({ page }) => {
   const zip = String(Math.floor(100000 + Math.random() * 900000));
 
   // Fill Company
-  await resilientFill(form.locator('input#company'), company, page, 'lead-company');
+  await CommonHelper.resilientFill(form.locator('input#company'), company, page, 'lead-company');
   CommonHelper.logger('STEP', 'Filled lead company');
   CommonHelper.logger('INFO', 'Lead Company:', company);
 
