@@ -1,22 +1,4 @@
-import path from 'path';
-
-const detailsFilePath = path.resolve(__dirname, '../abis_execution_details.json');
-
-function ensureAbisExecutionDetailsFile() {
-  if (!fs.existsSync(detailsFilePath)) {
-    fs.writeFileSync(detailsFilePath, JSON.stringify({}, null, 2));
-  }
-}
-
-function readAbisExecutionDetails() {
-  ensureAbisExecutionDetailsFile();
-  return JSON.parse(fs.readFileSync(detailsFilePath, 'utf8'));
-}
-
-function writeAbisExecutionDetails(data: any) {
-  ensureAbisExecutionDetailsFile();
-  fs.writeFileSync(detailsFilePath, JSON.stringify(data, null, 2));
-}
+import { readAbisExecutionDetails, writeAbisExecutionDetails } from '../utils/jsonWriteHelper';
 import type { Locator, Page } from '@playwright/test';
 // Logger helper
 function logger(type: 'INFO' | 'STEP' | 'WARN' | 'ERROR', ...args: any[]) {
@@ -1631,8 +1613,6 @@ try {
   await page.waitForTimeout(2000); // Wait for UI update
   await page.waitForTimeout(2000); // Wait for UI update
   const pageContent = await page.content();
-  // Save Proforma page HTML for diagnostics
-  require('fs').writeFileSync('proforma-page-debug.html', pageContent);
 
   let moreDropdownAcceptedClicked = false;
   for (let i = 0; i < 5; i++) {
