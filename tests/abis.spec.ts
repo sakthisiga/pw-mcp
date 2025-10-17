@@ -657,15 +657,7 @@ test('ABIS Sanity', async ({ page }) => {
 
   // After clicking New service, log modal HTML for debugging
   const serviceModal = page.locator('.modal:visible');
-  if (await serviceModal.count()) {
-    const modalHtml = await serviceModal.innerHTML();
-    fs.writeFileSync('service-modal-debug.html', modalHtml);
-  logger('INFO', 'Service modal HTML saved to service-modal-debug.html');
-  } else {
-    const pageHtml = await page.content();
-    fs.writeFileSync('service-page-debug.html', pageHtml);
-  logger('INFO', 'Service page HTML saved to service-page-debug.html');
-  }
+
   await page.waitForTimeout(2000);
 
 
@@ -930,17 +922,8 @@ test('ABIS Sanity', async ({ page }) => {
     }
     await page.waitForTimeout(1000);
   }
-  // Diagnostics: capture screenshot and HTML after Save click
-  await page.screenshot({ path: 'after-task-save-click.png', fullPage: true });
-  fs.writeFileSync('after-task-save-click.html', await page.content());
-  // If modal is still visible, capture its HTML
-  if (await taskModal.isVisible()) {
-    const modalHtml = await taskModal.innerHTML();
-    fs.writeFileSync('task-modal-after-save.html', modalHtml);
-    logger('INFO', 'Task modal HTML after Save click saved to task-modal-after-save.html');
-  }
-  // Log network activity
-  fs.writeFileSync('task-save-network-log.json', JSON.stringify(networkLogs, null, 2));
+  
+  // Log network activity related to task creation
   if (!toastAppeared) {
     logger('WARN', 'No success toast appeared after Save. See diagnostics and network log.');
   }
@@ -1558,7 +1541,6 @@ if (await billingFromDropdown.isVisible({ timeout: 10000 })) {
   logger('STEP', `Selected Billing From company: ${billingCompany}`);
 } else {
   const html = await page.content();
-  require('fs').writeFileSync('proforma-page-debug.html', html);
   logger('WARN', 'Billing From dropdown not found or not visible. Saved HTML for diagnostics. Skipping dropdown step.');
 }
 
@@ -1577,8 +1559,6 @@ if (await viewServicesBtn.isVisible({ timeout: 5000 })) {
   logger('STEP', 'Clicked Add in services modal');
   // Diagnostics: log items/services section after Add
   const itemsSection = page.locator('.panel_s.accounting-template');
-  const itemsHtml = await itemsSection.innerHTML();
-  require('fs').writeFileSync('proforma-items-section-debug.html', itemsHtml);
   const itemsButtons = await itemsSection.locator('button').allTextContents();
   const itemsLinks = await itemsSection.locator('a').allTextContents();
   // logger('INFO', `Items section after Add: Saved HTML to proforma-items-section-debug.html. Buttons: ${JSON.stringify(itemsButtons)}, Links: ${JSON.stringify(itemsLinks)}`);
@@ -1865,8 +1845,6 @@ try {
   // --- Extract Invoice details after conversion ---
   await page.waitForTimeout(2000); // Wait for UI update
   const invoicePageContent = await page.content();
-  // Save invoice page HTML for diagnostics
-  require('fs').writeFileSync('invoice-page-debug.html', invoicePageContent);
 
   // Robust extraction using node-html-parser
   const domParser = require('node-html-parser');
