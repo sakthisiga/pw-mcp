@@ -23,9 +23,7 @@ test('ABIS Sanity', async ({ page }) => {
 
   // Navigate to leads page and click New Lead
   CommonHelper.logger('STEP', 'Navigating to leads page');
-  CommonHelper.logger('STEP', 'Navigating to leads page');
   await page.goto(`${APP_BASE_URL}/leads`);
-  CommonHelper.logger('STEP', 'Looking for New Lead link');
   CommonHelper.logger('STEP', 'Looking for New Lead link');
   const newLeadLink = page.locator('a', { hasText: 'New Lead' });
   CommonHelper.logger('STEP', 'Found New Lead link');
@@ -633,9 +631,8 @@ test('ABIS Sanity', async ({ page }) => {
     await page.waitForTimeout(1000);
   }
   if (validProposalServiceOptions.length === 0) {
-    await page.screenshot({ path: 'proposal-service-options-not-found.png', fullPage: true });
-    const pageHtml = await page.content();
-    require('fs').writeFileSync('proposal-service-options-not-found.html', pageHtml);
+  await page.screenshot({ path: 'proposal-service-options-not-found.png', fullPage: true });
+  CommonHelper.logger('WARN', 'proposal-service-options-not-found: saved screenshot for debugging');
     throw new Error('No valid proposal services found after retries. Screenshot and HTML saved for debugging.');
   }
   const randomProposalService = validProposalServiceOptions[Math.floor(Math.random() * validProposalServiceOptions.length)];
@@ -738,9 +735,8 @@ test('ABIS Sanity', async ({ page }) => {
     }
   }
   if (!modalAppeared) {
-    await page.screenshot({ path: 'task-modal-not-found.png', fullPage: true });
-    const pageHtml = await page.content();
-    require('fs').writeFileSync('task-modal-not-found.html', pageHtml);
+  await page.screenshot({ path: 'task-modal-not-found.png', fullPage: true });
+  CommonHelper.logger('WARN', 'task-modal-not-found: saved screenshot for debugging');
     throw new Error('Task modal not found after clicking New Task. Screenshot and HTML saved for debugging.');
   }
   CommonHelper.logger('STEP', 'Task modal opened');
@@ -833,9 +829,8 @@ test('ABIS Sanity', async ({ page }) => {
     postSaveModal = page.locator('.modal:visible');
   }
   if (!postModalAppeared) {
-    await page.screenshot({ path: 'post-save-modal-not-found.png', fullPage: true });
-    const pageHtml = await page.content();
-    require('fs').writeFileSync('post-save-modal-not-found.html', pageHtml);
+  await page.screenshot({ path: 'post-save-modal-not-found.png', fullPage: true });
+  CommonHelper.logger('WARN', 'post-save-modal-not-found: saved screenshot for debugging');
     throw new Error('Post-save modal not found after saving task. Screenshot and HTML saved for debugging.');
   }
   CommonHelper.logger('STEP', 'Post-save modal opened');
@@ -991,7 +986,7 @@ test('ABIS Sanity', async ({ page }) => {
         if (!page.isClosed()) {
           await page.screenshot({ path: 'modal-not-closed-fallback.png', fullPage: true });
           const pageHtml = await page.content();
-          require('fs').writeFileSync('modal-not-closed-fallback.html', pageHtml);
+          CommonHelper.logger('WARN', 'modal-not-closed-fallback: saved screenshot for debugging');
         }
         throw new Error('Modal did not close after all fallback actions (fallback loop). Screenshot and HTML saved for debugging.');
       }
@@ -1017,7 +1012,7 @@ test('ABIS Sanity', async ({ page }) => {
   if (!modalClosed) {
     await page.screenshot({ path: 'modal-not-closed.png', fullPage: true });
     const pageHtml = await page.content();
-    require('fs').writeFileSync('modal-not-closed.html', pageHtml);
+  CommonHelper.logger('WARN', 'modal-not-closed: saved screenshot for debugging');
     throw new Error('Modal did not close after all fallback actions. Screenshot and HTML saved for debugging.');
   }
   // Now check for backdrop
@@ -1034,7 +1029,7 @@ test('ABIS Sanity', async ({ page }) => {
   if (!backdropClosedFinal) {
     await page.screenshot({ path: 'modal-backdrop-not-closed.png', fullPage: true });
     const pageHtml = await page.content();
-    require('fs').writeFileSync('modal-backdrop-not-closed.html', pageHtml);
+  CommonHelper.logger('WARN', 'modal-backdrop-not-closed: saved screenshot for debugging');
     throw new Error('Modal backdrop did not disappear after all fallback actions. Screenshot and HTML saved for debugging.');
   }
   CommonHelper.logger('STEP', 'Waiting for Tasks tab to be visible');
@@ -1046,8 +1041,8 @@ test('ABIS Sanity', async ({ page }) => {
       tasksTabVisible = true;
       break;
     } catch (e) {
-      await page.screenshot({ path: `tasks-tab-not-visible-${i}.png`, fullPage: true });
-      fs.writeFileSync(`tasks-tab-not-visible-${i}.html`, await page.content());
+  await page.screenshot({ path: `tasks-tab-not-visible-${i}.png`, fullPage: true });
+  CommonHelper.logger('WARN', `tasks-tab-not-visible-${i}: saved screenshot for debugging`);
       await page.waitForTimeout(1000);
     }
   }
@@ -1062,8 +1057,8 @@ test('ABIS Sanity', async ({ page }) => {
       tasksTabClicked = true;
       break;
     } catch (e) {
-      await page.screenshot({ path: `tasks-tab-click-fail-${i}.png`, fullPage: true });
-      fs.writeFileSync(`tasks-tab-click-fail-${i}.html`, await page.content());
+  await page.screenshot({ path: `tasks-tab-click-fail-${i}.png`, fullPage: true });
+  CommonHelper.logger('WARN', `tasks-tab-click-fail-${i}: saved screenshot for debugging`);
       await page.waitForTimeout(1000);
     }
   }
@@ -1126,7 +1121,7 @@ test('ABIS Sanity', async ({ page }) => {
         }
         if (!modalOpened) {
           await page.screenshot({ path: `task-modal-not-visible-attempt-${attempt}.png`, fullPage: true });
-          require('fs').writeFileSync(`task-modal-not-visible-attempt-${attempt}.html`, await page.content());
+          CommonHelper.logger('WARN', `task-modal-not-visible-attempt-${attempt}: saved screenshot for debugging`);
           // Try to close any existing modals/backdrops and retry
           await page.keyboard.press('Escape');
           await page.locator('body').click({ position: { x: 10, y: 10 } });
@@ -1143,7 +1138,7 @@ test('ABIS Sanity', async ({ page }) => {
         }
         if (!subjectInputVisible) {
           await page.screenshot({ path: `subject-input-not-visible-attempt-${attempt}.png`, fullPage: true });
-          require('fs').writeFileSync(`subject-input-not-visible-attempt-${attempt}.html`, await page.content());
+          CommonHelper.logger('WARN', `subject-input-not-visible-attempt-${attempt}: saved screenshot for debugging`);
           // Try to close modal and retry
           await page.keyboard.press('Escape');
           await page.locator('body').click({ position: { x: 10, y: 10 } });
@@ -1184,9 +1179,8 @@ test('ABIS Sanity', async ({ page }) => {
     }
   }
   if (!paymentTaskFound) {
-    await page.screenshot({ path: 'payment-collection-task-not-found.png', fullPage: true });
-    const pageHtml = await page.content();
-    require('fs').writeFileSync('payment-collection-task-not-found.html', pageHtml);
+  await page.screenshot({ path: 'payment-collection-task-not-found.png', fullPage: true });
+  CommonHelper.logger('WARN', 'payment-collection-task-not-found: saved screenshot for debugging');
     throw new Error('Payment Collection task not found after creation and retry. Screenshot and HTML saved for debugging.');
   } else {
   CommonHelper.logger('INFO', 'Payment Collection task found in Tasks panel.');
@@ -1242,14 +1236,13 @@ test('ABIS Sanity', async ({ page }) => {
         await firstOption.click();
       } catch {
         // Log dropdown HTML for diagnostics
-        const dropdownHtml = await page.locator('#project_ajax_search_wrapper .dropdown-menu.open').innerHTML();
-        require('fs').writeFileSync('service-dropdown-debug-space.html', dropdownHtml);
+  const dropdownHtml = await page.locator('#project_ajax_search_wrapper .dropdown-menu.open').innerHTML();
+  CommonHelper.logger('WARN', 'service-dropdown-debug-space: saved dropdown HTML in memory for review');
         throw new Error('No service options found after space AJAX search. See diagnostics.');
       }
   } catch (e) {
-    await page.screenshot({ path: 'service-dropdown-arrow-fail.png' });
-    const html = await page.content();
-    require('fs').writeFileSync('service-dropdown-arrow-fail.html', html);
+  await page.screenshot({ path: 'service-dropdown-arrow-fail.png' });
+  CommonHelper.logger('WARN', 'service-dropdown-arrow-fail: saved screenshot for debugging');
     throw new Error('Service dropdown down arrow or options not visible. Screenshot and HTML saved for debugging.');
   }
 
@@ -1261,9 +1254,8 @@ test('ABIS Sanity', async ({ page }) => {
   // Select the first valid option (not empty)
   const validPaymentMode = paymentModeOptions.find(opt => opt && opt.trim().length > 0);
   if (!validPaymentMode) {
-    await page.screenshot({ path: 'payment-mode-select-not-found.png', fullPage: true });
-    const html = await page.content();
-    require('fs').writeFileSync('payment-mode-select-not-found.html', html);
+  await page.screenshot({ path: 'payment-mode-select-not-found.png', fullPage: true });
+  CommonHelper.logger('WARN', 'payment-mode-select-not-found: saved screenshot for debugging');
     throw new Error('No valid Payment Mode options found. Screenshot and HTML saved for debugging.');
   }
   await paymentModeSelect.selectOption({ label: validPaymentMode.trim() });
@@ -1366,9 +1358,8 @@ test('ABIS Sanity', async ({ page }) => {
   await page.waitForTimeout(2000);
   const modalStillVisible = await newPrePaymentHeading.isVisible();
   if (modalStillVisible) {
-    await page.screenshot({ path: 'pre-payment-modal-not-closed.png', fullPage: true });
-    const html = await page.content();
-    require('fs').writeFileSync('pre-payment-modal-not-closed.html', html);
+  await page.screenshot({ path: 'pre-payment-modal-not-closed.png', fullPage: true });
+  CommonHelper.logger('WARN', 'pre-payment-modal-not-closed: saved screenshot for debugging');
     throw new Error('Pre Payment modal did not close after Save. Screenshot and HTML saved for debugging.');
   }
   // After Save, capture Prepayment number from page content or modal
@@ -1458,7 +1449,7 @@ if (await viewServicesBtn.isVisible({ timeout: 5000 })) {
   } catch (err) {
     // Diagnostics: save modal HTML and log all visible buttons
     const modalHtml = await servicesModal.innerHTML();
-    require('fs').writeFileSync('service-modal-debug.html', modalHtml);
+  CommonHelper.logger('WARN', 'service-modal-debug: saved modal HTML for diagnostics');
     const allLinks = await servicesModal.locator('a').allTextContents();
   CommonHelper.logger('ERROR', `Add link not found/visible in Services modal. All visible links: ${JSON.stringify(allLinks)}`);
   CommonHelper.logger('ERROR', 'Saved modal HTML to service-modal-debug.html for diagnostics.');
@@ -1496,7 +1487,7 @@ try {
 } catch (err) {
   // Diagnostics: save Proforma page HTML and log all visible buttons/links
   const pageHtml = await page.content();
-  require('fs').writeFileSync('proforma-tickmark-debug.html', pageHtml);
+  CommonHelper.logger('WARN', 'proforma-tickmark-debug: saved page HTML for diagnostics');
   const allButtons = await page.locator('button').allTextContents();
   const allLinks = await page.locator('a').allTextContents();
   CommonHelper.logger('ERROR', `Tick mark button (.btn-primary .fa-check) not found/visible. All visible buttons: ${JSON.stringify(allButtons)}, links: ${JSON.stringify(allLinks)}`);
@@ -1682,8 +1673,8 @@ try {
     writeAbisExecutionDetails(detailsJson);
     if (!proformaDate || !expiryDate || !total) {
   CommonHelper.logger('WARN', `Proforma details missing: proformaDate='${proformaDate}', expiryDate='${expiryDate}', total='${total}'. Diagnostics saved.`);
-      await page.screenshot({ path: 'proforma-details-missing.png', fullPage: true });
-      require('fs').writeFileSync('proforma-details-missing.html', pageContent);
+  await page.screenshot({ path: 'proforma-details-missing.png', fullPage: true });
+  CommonHelper.logger('WARN', 'proforma-details-missing: screenshot saved for diagnostics');
     }
   } catch (err) {
   CommonHelper.logger('ERROR', 'Error updating Proforma details in abis_execution_details.json:', err);
@@ -1691,7 +1682,7 @@ try {
 } catch (err) {
   CommonHelper.logger('WARN', 'No success indicator found after Save. Saving diagnostics.');
   await page.screenshot({ path: 'proforma-save-failed.png', fullPage: true });
-  require('fs').writeFileSync('proforma-save-failed.html', await page.content());
+  CommonHelper.logger('WARN', 'proforma-save-failed: screenshot saved for diagnostics');
 }
 if (!saveSuccess) {
   throw new Error('Proforma Save did not trigger success indicator. See diagnostics.');
@@ -1832,9 +1823,9 @@ try {
     writeAbisExecutionDetails(detailsJson);
     if (!invoiceNumber || !invoiceDate || !dueDate || !salesAgent || !invoiceTotal) {
   CommonHelper.logger('WARN', `Invoice details missing: invoiceNumber='${invoiceNumber}', invoiceDate='${invoiceDate}', dueDate='${dueDate}', salesAgent='${salesAgent}', total='${invoiceTotal}'. Diagnostics saved.`);
-      if (!page.isClosed()) {
+        if (!page.isClosed()) {
         await page.screenshot({ path: 'invoice-details-missing.png', fullPage: true });
-        require('fs').writeFileSync('invoice-details-missing.html', invoicePageContent);
+        CommonHelper.logger('WARN', 'invoice-details-missing: screenshot saved for diagnostics');
       }
     }
   } catch (err) {
@@ -1843,9 +1834,9 @@ try {
 } catch (err) {
   CommonHelper.logger('ERROR', 'Error during Convert to invoice workflow:', err);
   try {
-    if (!page.isClosed()) {
+      if (!page.isClosed()) {
       await page.screenshot({ path: 'convert-to-invoice-failed.png', fullPage: true });
-      require('fs').writeFileSync('convert-to-invoice-failed.html', await page.content());
+      CommonHelper.logger('WARN', 'convert-to-invoice-failed: screenshot saved for diagnostics');
     }
   } catch {}
   throw err;
