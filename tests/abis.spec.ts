@@ -13,7 +13,7 @@ const APP_BASE_URL = process.env.APP_BASE_URL;
 const E2E_USER = process.env.E2E_USER;
 const E2E_PASS = process.env.E2E_PASS;
 
-test('ABIS Sanity', async ({ page }) => {
+test('ABIS Sanity @sanity', async ({ page }) => {
   test.setTimeout(300000); // 5 minutes
   CommonHelper.logger('INFO', 'Starting ABIS Sanity Test');
   CommonHelper.logger('INFO', 'Using APP_BASE_URL:', APP_BASE_URL);
