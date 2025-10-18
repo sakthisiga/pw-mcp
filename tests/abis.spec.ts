@@ -1,4 +1,5 @@
 import { login } from '../utils/loginHelper';
+import { LeadHelper, LeadDetails } from '../utils/leadHelper';
 import { readAbisExecutionDetails, writeAbisExecutionDetails } from '../utils/jsonWriteHelper';
 import { CommonHelper } from '../utils/commonHelper';
 import { test, expect } from '@playwright/test';
@@ -21,104 +22,12 @@ test('ABIS Sanity @sanity', async ({ page }) => {
   // Login
   await login(page, APP_BASE_URL!, E2E_USER!, E2E_PASS!);
 
-  // Navigate to leads page and click New Lead
-  CommonHelper.logger('STEP', 'Navigating to leads page');
-  await page.goto(`${APP_BASE_URL}/leads`);
-  CommonHelper.logger('STEP', 'Looking for New Lead link');
-  const newLeadLink = page.locator('a', { hasText: 'New Lead' });
-  CommonHelper.logger('STEP', 'Found New Lead link');
-  await CommonHelper.resilientExpectVisible(newLeadLink, page, 'new-lead-link');
-  CommonHelper.logger('STEP', 'New Lead link visible');
-  await CommonHelper.resilientClick(newLeadLink, page, 'new-lead-link');
-  CommonHelper.logger('STEP', 'Clicked New Lead link');
-  CommonHelper.logger('INFO', 'Navigated to New Lead page');
-
-  // Ensure form is loaded
-  CommonHelper.logger('STEP', 'Waiting for lead form heading');
-  await CommonHelper.resilientExpectVisible(page.getByRole('heading', { name: /Add new lead/i }), page, 'lead-form-heading');
-  CommonHelper.logger('STEP', 'Lead form heading visible');
-
-  // Fill lead details
-  CommonHelper.logger('STEP', 'Filling lead details');
-  const name = faker.name.findName();
-  const email = faker.internet.email();
-  const phone = faker.phone.phoneNumber('999#######');
-  const form = page.locator('#lead_form');
-  await CommonHelper.resilientFill(form.locator('input#name'), name, page, 'lead-name');
-  CommonHelper.logger('STEP', 'Filled lead name');
-  await CommonHelper.resilientFill(form.locator('input#email'), email, page, 'lead-email');
-  CommonHelper.logger('STEP', 'Filled lead email');
-  await CommonHelper.resilientFill(form.locator('input#phonenumber'), phone, page, 'lead-phone');
-  CommonHelper.logger('STEP', 'Filled lead phone');
-
-  // Fill additional lead fields with random values
-  const company = faker.company.companyName();
-  const address = faker.address.streetAddress();
-  const city = faker.address.city();
-  // Generate a 6-digit zip code as a string
-  const zip = String(Math.floor(100000 + Math.random() * 900000));
-
-  // Fill Company
-  await CommonHelper.resilientFill(form.locator('input#company'), company, page, 'lead-company');
-  CommonHelper.logger('STEP', 'Filled lead company');
-  CommonHelper.logger('INFO', 'Lead Company:', company);
-
-  // Fill Address
-  await form.locator('input#address').fill(address);
-  await expect(form.locator('input#address')).toHaveValue(address);
-  CommonHelper.logger('INFO', 'Lead Address:', address);
-
-  // Fill City
-  await form.locator('input#city').fill(city);
-  await expect(form.locator('input#city')).toHaveValue(city);
-  CommonHelper.logger('INFO', 'Lead City:', city);
-
-  // Select State (always Tamil Nadu)
-  const stateDropdown = form.locator('select#state');
-  await expect(stateDropdown).toBeVisible();
-  await stateDropdown.selectOption({ label: 'Tamil Nadu' });
-  const selectedState = await stateDropdown.locator('option:checked').textContent();
-  CommonHelper.logger('INFO', 'Lead State:', selectedState);
-
-  // Fill Zip code
-  // Robust zip code field handling
-  let zipInput = form.locator('input#zipcode');
-  if (!(await zipInput.count())) {
-    zipInput = form.locator("input[name='zipcode']");
-  }
-  if (!(await zipInput.count())) {
-    zipInput = form.locator("input[name*='zip']");
-  }
-  if (!(await zipInput.count())) {
-    zipInput = form.locator("input[name*='postal']");
-  }
-  if (!(await zipInput.count())) {
-    zipInput = form.locator("input[name*='pincode']");
-  }
-  if (await zipInput.count()) {
-    await zipInput.fill(zip);
-    // Some zip fields may not update value immediately, so check after a short wait
-    await page.waitForTimeout(500);
-    const zipValue = await zipInput.inputValue();
-    if (zipValue === zip) {
-  CommonHelper.logger('INFO', 'Lead Zip code:', zip);
-    } else {
-  CommonHelper.logger('WARN', `Zip code field did not update as expected. Expected: ${zip}, Actual: ${zipValue}`);
-    }
-  } else {
-  CommonHelper.logger('WARN', 'Zip code field not found, skipping zip code entry.');
-  }
-
-  // Save lead
-  const saveButton = form.locator('button:has-text("Save")');
-  await expect(saveButton).toBeVisible();
-  await expect(saveButton).toBeEnabled();
-  await saveButton.click();
-  CommonHelper.logger('STEP', 'Lead saved, waiting for modal...');
-  // Wait for the lead modal to appear (target #lead-modal)
+  // Create lead via helper
+  const leadHelper = new LeadHelper(page, APP_BASE_URL!);
+  const lead: LeadDetails = await leadHelper.createLead();
+  // dialog is referenced by the subsequent proposal navigation; define it here
   const dialog = page.locator('#lead-modal');
-  await expect(dialog).toBeVisible({ timeout: 10000 });
-  await page.waitForTimeout(3000);
+  const { name, email, phone, company, address, city, state: selectedState, zip } = lead;
    // Lead creation screenshot
   // Removed routine lead creation screenshot for optimization
 
