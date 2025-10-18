@@ -704,10 +704,55 @@ test('ABIS Sanity @sanity', async ({ page }) => {
   // --- Workflow: Create new task after service creation ---
   // Assumes service creation and navigation to service page is complete
   await page.waitForTimeout(2000);
-  // Click "New Task" button
-  const newTaskBtn = page.locator('button, a', { hasText: 'New Task' });
-  await expect(newTaskBtn).toBeVisible({ timeout: 10000 });
-  await newTaskBtn.click();
+  // Click "New Task" button - scope the locator to the actions container to avoid matching notifications or other links
+  const actionsContainer = page.locator('div').filter({ has: page.locator('a', { hasText: 'Go to Customer' }) }).first();
+  let candidates = actionsContainer.locator('a, button', { hasText: 'New Task' });
+  if (!(await candidates.count())) {
+    // Fallback: page-level candidates
+    candidates = page.locator('a, button', { hasText: 'New Task' });
+  }
+  const candidateCount = await candidates.count();
+  if (candidateCount === 0) {
+    await page.screenshot({ path: 'new-task-not-found.png', fullPage: true });
+    CommonHelper.logger('WARN', 'No New Task candidates found on page');
+    throw new Error('New Task button not found');
+  }
+  let clicked = false;
+  if (candidateCount === 1) {
+    await CommonHelper.resilientClick(candidates.first(), page, 'new-task-btn');
+    clicked = true;
+  } else {
+    // Try visible candidates first
+    for (let i = 0; i < candidateCount; i++) {
+      const cand = candidates.nth(i);
+      try {
+        if (await cand.isVisible()) {
+          await CommonHelper.resilientClick(cand, page, `new-task-candidate-${i}`);
+          clicked = true;
+          break;
+        }
+      } catch (e) {
+        // ignore and try next
+      }
+    }
+    // Fallback to element handle click if none of the locators succeeded
+    if (!clicked) {
+      for (let i = 0; i < candidateCount; i++) {
+        const handle = await candidates.nth(i).elementHandle();
+        if (!handle) continue;
+        const box = await handle.boundingBox();
+        if (box && box.width > 0 && box.height > 0) {
+          await handle.click();
+          clicked = true;
+          break;
+        }
+      }
+    }
+  }
+  if (!clicked) {
+    await page.screenshot({ path: 'new-task-click-fail.png', fullPage: true });
+    throw new Error('Failed to click New Task (no clickable candidate)');
+  }
   CommonHelper.logger('STEP', 'New Task button clicked');
 
   // Wait for popup/modal to appear
@@ -1104,12 +1149,50 @@ test('ABIS Sanity @sanity', async ({ page }) => {
   let paymentTaskFound = await findPaymentCollectionTask();
   if (!paymentTaskFound) {
   CommonHelper.logger('INFO', 'Payment Collection task not found, attempting to create again');
-    const newTaskBtn = page.locator('button, a', { hasText: 'New Task' });
+    // Resolve candidates similarly to initial attempt
+    const actionsContainerRetry = page.locator('div').filter({ has: page.locator('a', { hasText: 'Go to Customer' }) }).first();
+    let candidates = actionsContainerRetry.locator('a, button', { hasText: 'New Task' });
+    if (!(await candidates.count())) candidates = page.locator('a, button', { hasText: 'New Task' });
+    const candidateCount = await candidates.count();
     let modalOpened = false;
     let subjectInputVisible = false;
     for (let attempt = 0; attempt < 3; attempt++) {
-      if (await newTaskBtn.count() && await newTaskBtn.isVisible()) {
-        await newTaskBtn.click();
+      if (candidateCount > 0) {
+        // try to click a suitable candidate (visible first)
+        let clicked = false;
+        if (candidateCount === 1) {
+          await CommonHelper.resilientClick(candidates.first(), page, `new-task-retry-${attempt}`);
+          clicked = true;
+        } else {
+          for (let i = 0; i < candidateCount; i++) {
+            const cand = candidates.nth(i);
+            try {
+              if (await cand.isVisible()) {
+                await CommonHelper.resilientClick(cand, page, `new-task-retry-${attempt}-${i}`);
+                clicked = true;
+                break;
+              }
+            } catch (e) {
+              // ignore and continue
+            }
+          }
+          if (!clicked) {
+            for (let i = 0; i < candidateCount; i++) {
+              const handle = await candidates.nth(i).elementHandle();
+              if (!handle) continue;
+              const box = await handle.boundingBox();
+              if (box && box.width > 0 && box.height > 0) {
+                await handle.click();
+                clicked = true;
+                break;
+              }
+            }
+          }
+        }
+        if (!clicked) {
+          CommonHelper.logger('WARN', `Attempt ${attempt} to click New Task failed (no clickable candidate), retrying`);
+        }
+      }
         // Wait for modal
         const taskModal = page.locator('.modal:visible');
         for (let i = 0; i < 10; i++) {
@@ -1177,7 +1260,6 @@ test('ABIS Sanity @sanity', async ({ page }) => {
       }
       await page.waitForTimeout(1000);
     }
-  }
   if (!paymentTaskFound) {
   await page.screenshot({ path: 'payment-collection-task-not-found.png', fullPage: true });
   CommonHelper.logger('WARN', 'payment-collection-task-not-found: saved screenshot for debugging');
