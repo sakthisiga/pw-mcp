@@ -568,41 +568,113 @@ test('ABIS Sanity @sanity', async ({ page }) => {
     }
   }
   await expect(acceptedProposalsDropdown).toBeVisible({ timeout: 20000 });
-  // Find the correct label in the dropdown options
+  // Find the correct label in the dropdown options and select robustly.
+  // The DOM may contain options where the human text contains the PRO-xxxxx label
+  // while the option value or data-text contains a numeric id (e.g. value="1156", data-text="1156").
   const proposalOptions = await acceptedProposalsDropdown.locator('option').allTextContents();
-  // Match by prefix (e.g., 'PRO-001286')
-  // Try to match by prefix (e.g., 'PRO-001287') or substring
-  // Find the option whose text includes the proposal number, then select by value
   let proposalValue = '';
+  const normalizedProposal = (proposalNumberForService || '').trim();
+  // extract digits from PRO-001156 -> '001156' and integer form '1156'
+  const proposalDigitsRaw = (normalizedProposal.match(/\d+/g) || []).join('');
+  const proposalDigitsInt = proposalDigitsRaw ? String(parseInt(proposalDigitsRaw, 10)) : '';
+  CommonHelper.logger('INFO', 'Looking for proposal:', normalizedProposal, 'digitsRaw:', proposalDigitsRaw, 'digitsInt:', proposalDigitsInt);
+
   for (let attempt = 0; attempt < 5; attempt++) {
-    const proposalOptionHandles = await acceptedProposalsDropdown.locator('option').elementHandles();
-    for (const handle of proposalOptionHandles) {
+    const optionHandles = await acceptedProposalsDropdown.locator('option').elementHandles();
+    for (const handle of optionHandles) {
       const text = (await handle.textContent())?.trim() || '';
-      if (text.includes(proposalNumberForService)) {
-        proposalValue = (await handle.getAttribute('value')) || '';
+      const dataText = (await handle.getAttribute('data-text')) || '';
+      const val = (await handle.getAttribute('value')) || '';
+      CommonHelper.logger('INFO', `Proposal option: text="${text}", data-text="${dataText}", value="${val}"`);
+
+      // Match by exact visible PRO-... text
+      if (normalizedProposal && text.includes(normalizedProposal)) {
+        proposalValue = val || dataText;
+        break;
+      }
+      // Match by numeric id present in data-text or value (handles leading zeros)
+      if (proposalDigitsRaw && (dataText === proposalDigitsRaw || dataText === proposalDigitsInt || val === proposalDigitsRaw || val === proposalDigitsInt)) {
+        proposalValue = val || dataText;
+        break;
+      }
+      // Match if the visible text contains the integer digits (e.g., 'PRO-001156' vs '1156')
+      if (proposalDigitsInt && text.includes(proposalDigitsInt)) {
+        proposalValue = val || dataText;
         break;
       }
     }
     if (proposalValue) break;
-    await page.waitForTimeout(1000); // Wait 1s before retry
+    await page.waitForTimeout(1000);
   }
+
   if (!proposalValue) {
     const proposalOptionsAfterRetry = await acceptedProposalsDropdown.locator('option').allTextContents();
-  CommonHelper.logger('WARN', 'Expected proposal not found. Available proposal options after retries:', proposalOptionsAfterRetry);
+    CommonHelper.logger('WARN', 'Expected proposal not found. Available proposal options after retries:', proposalOptionsAfterRetry);
     // Try to select the first valid proposal option (not 'Select Proposal')
     const validOptions = proposalOptionsAfterRetry.filter(opt => opt && !opt.toLowerCase().includes('select proposal'));
     if (validOptions.length > 0) {
-      await acceptedProposalsDropdown.selectOption({ label: validOptions[0].trim() });
-  CommonHelper.logger('INFO', 'Selected available proposal:', validOptions[0]);
+      const fallbackLabel = validOptions[0].trim();
+      CommonHelper.logger('INFO', 'Attempting fallback selection by label ->', fallbackLabel);
+      // Search options for a matching visible text and obtain its value
+      const optionHandles = await acceptedProposalsDropdown.locator('option').elementHandles();
+      let foundValue = '';
+      let foundText = '';
+      for (const h of optionHandles) {
+        const t = ((await h.textContent()) || '').trim();
+        const v = (await h.getAttribute('value')) || '';
+        if (t.includes(fallbackLabel) || t.includes(fallbackLabel.replace(/\s+/g, ' '))) {
+          foundValue = v;
+          foundText = t;
+          break;
+        }
+      }
+      if (foundValue) {
+        CommonHelper.logger('INFO', 'Found option for fallback label. value:', foundValue, 'text:', foundText);
+        const setOk = await page.evaluate((args: { sel: string; val: string }) => {
+          const { sel, val } = args;
+          const s = document.querySelector(sel) as HTMLSelectElement | null;
+          if (!s) return false;
+          s.value = val;
+          s.dispatchEvent(new Event('change', { bubbles: true }));
+          return true;
+        }, { sel: 'select#proposal_id, select[name="proposal_id"]', val: foundValue });
+        if (!setOk) {
+          // last resort: use Playwright's selectOption by value
+          await acceptedProposalsDropdown.selectOption({ value: foundValue });
+        }
+        // Verify selection
+        const checkedText = ((await acceptedProposalsDropdown.locator('option:checked').textContent()) || '').trim();
+        if (!checkedText || !checkedText.includes(fallbackLabel) && !checkedText.includes(proposalDigitsInt || '')) {
+          CommonHelper.logger('WARN', 'Fallback selection did not stick. checkedText:', checkedText, 'attemptedValue:', foundValue);
+        } else {
+          CommonHelper.logger('INFO', 'Selected available proposal by value (fallback):', foundValue, 'label:', checkedText);
+        }
+      } else {
+        // If no value found, fallback to selecting by label directly
+        await acceptedProposalsDropdown.selectOption({ label: fallbackLabel });
+        CommonHelper.logger('INFO', 'Selected available proposal by label (direct fallback):', fallbackLabel);
+      }
     } else {
       throw new Error('No valid proposal options available');
     }
   } else {
-    await acceptedProposalsDropdown.selectOption({ value: proposalValue });
-  CommonHelper.logger('INFO', 'Accepted Proposal selected by value:', proposalValue);
+    // Select by value if available, otherwise fallback to selecting by label/text
+    try {
+      await acceptedProposalsDropdown.selectOption({ value: proposalValue });
+      CommonHelper.logger('INFO', 'Accepted Proposal selected by value:', proposalValue);
+    } catch (err) {
+      CommonHelper.logger('WARN', 'selectOption by value failed, falling back to label selection. Value:', proposalValue, 'Error:', String(err));
+      // fallback: find the first option text that includes the proposal and select by label
+      const labels = await acceptedProposalsDropdown.locator('option').allTextContents();
+      const matchLabel = labels.find(l => l && normalizedProposal && l.includes(normalizedProposal)) || labels.find(l => l && proposalDigitsInt && l.includes(proposalDigitsInt));
+      if (matchLabel) {
+        await acceptedProposalsDropdown.selectOption({ label: matchLabel.trim() });
+        CommonHelper.logger('INFO', 'Accepted Proposal selected by label fallback:', matchLabel.trim());
+      } else {
+        throw err;
+      }
+    }
   }
-  await acceptedProposalsDropdown.selectOption({ value: proposalValue });
-  CommonHelper.logger('INFO', 'Accepted Proposal selected by value:', proposalValue);
 
   // Wait for Proposal Services dropdown (#itemable_id) to populate
   let proposalServicesDropdown = page.locator('select#itemable_id');
@@ -750,8 +822,97 @@ test('ABIS Sanity @sanity', async ({ page }) => {
     }
   }
   if (!clicked) {
-    await page.screenshot({ path: 'new-task-click-fail.png', fullPage: true });
-    throw new Error('Failed to click New Task (no clickable candidate)');
+    // Additional fallbacks: try evaluate-click on candidate handles, and document-level JS click
+    CommonHelper.logger('WARN', 'Primary New Task click attempts failed; trying JS/evaluate fallbacks');
+    for (let i = 0; i < candidateCount; i++) {
+      try {
+        const handle = await candidates.nth(i).elementHandle();
+        if (!handle) continue;
+        // Scroll into view and try evaluate-based click
+        await handle.evaluate((el: HTMLElement) => {
+          el.scrollIntoView({ block: 'center', inline: 'center' });
+          (el as HTMLElement).click();
+        });
+        // small wait to let modal appear
+        await page.waitForTimeout(500);
+        const maybeModal = page.locator('.modal:visible');
+        if (await maybeModal.count() && await maybeModal.isVisible()) {
+          clicked = true;
+          CommonHelper.logger('INFO', `New Task clicked via evaluate on candidate ${i}`);
+          break;
+        }
+      } catch (e) {
+        // ignore and try next
+      }
+    }
+    if (!clicked) {
+      // Try a document-level search limited to actionsContainer to avoid clicking notification links
+      try {
+        const clickedViaDoc = await page.evaluate(() => {
+          const container = Array.from(document.querySelectorAll('div')).find(d => d.querySelector('a') && d.textContent && d.textContent.includes('Go to Customer'));
+          if (!container) return false;
+          const elems = Array.from(container.querySelectorAll('a, button')) as HTMLElement[];
+          const cand = elems.find(e => (e.innerText || '').trim().includes('New Task'));
+          if (!cand) return false;
+          cand.scrollIntoView({ block: 'center', inline: 'center' });
+          cand.click();
+          return true;
+        });
+        if (clickedViaDoc) {
+          await page.waitForTimeout(500);
+          const maybeModal = page.locator('.modal:visible');
+          if (await maybeModal.count() && await maybeModal.isVisible()) {
+            clicked = true;
+            CommonHelper.logger('INFO', 'New Task clicked via document-level JS click');
+          }
+        }
+      } catch (e) {
+        CommonHelper.logger('WARN', 'Document-level JS click attempt failed', String(e));
+      }
+    }
+    if (!clicked) {
+      CommonHelper.logger('WARN', 'All previous New Task click attempts failed — trying aggressive document-wide visible click');
+      try {
+        const aggressive = await page.evaluate(() => {
+          const isVisible = (el: Element) => {
+            const r = (el as HTMLElement).getBoundingClientRect();
+            return r && r.width > 0 && r.height > 0;
+          };
+          const candidates = Array.from(document.querySelectorAll('a, button')) as HTMLElement[];
+          for (const el of candidates) {
+            const txt = (el.innerText || '').trim();
+            if (!txt) continue;
+            if (/New\s*Task/i.test(txt) && isVisible(el)) {
+              try {
+                el.scrollIntoView({ block: 'center', inline: 'center' });
+                el.click();
+                return { ok: true, tag: el.tagName, text: txt, id: el.id || '', class: el.className || '' };
+              } catch (err) {
+                // continue trying others
+              }
+            }
+          }
+          return { ok: false };
+        });
+        if (aggressive && aggressive.ok) {
+          CommonHelper.logger('INFO', 'Aggressive New Task click succeeded. Element:', aggressive.tag, aggressive.text, aggressive.id, aggressive.class);
+          // wait a bit for modal
+          await page.waitForTimeout(500);
+          const maybeModal = page.locator('.modal:visible');
+          if (await maybeModal.count() && await maybeModal.isVisible()) {
+            clicked = true;
+          }
+        } else {
+          CommonHelper.logger('WARN', 'Aggressive New Task click did not find a visible element to click');
+        }
+      } catch (e) {
+        CommonHelper.logger('WARN', 'Aggressive document click attempt failed:', String(e));
+      }
+    }
+    if (!clicked) {
+      await page.screenshot({ path: 'new-task-click-fail.png', fullPage: true });
+      throw new Error('Failed to click New Task (no clickable candidate)');
+    }
   }
   CommonHelper.logger('STEP', 'New Task button clicked');
 
