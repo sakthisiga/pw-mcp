@@ -1,6 +1,7 @@
 import { login } from '../utils/loginHelper';
 import { LeadHelper, LeadDetails } from '../utils/leadHelper';
 import { ProposalHelper, ProposalDetails } from '../utils/proposalHelper';
+import { CustomerHelper } from '../utils/customerHelper';
 import { readAbisExecutionDetails, writeAbisExecutionDetails } from '../utils/jsonWriteHelper';
 import { CommonHelper } from '../utils/commonHelper';
 import { test, expect } from '@playwright/test';
@@ -67,172 +68,10 @@ test('ABIS Sanity @sanity', async ({ page }) => {
   // Wait for modal content to be populated before clicking Convert to Customer
   const modalHeading = leadModal.locator('h4, h3, h2, h1').first();
   await expect(modalHeading).toBeVisible({ timeout: 10000 });
-  // Click the "Convert to customer" <a> tag
-  const convertLink = leadModal.locator('a:has-text("Convert to customer")');
-  await expect(convertLink).toBeVisible({ timeout: 10000 });
-  await convertLink.click();
-  CommonHelper.logger('STEP', 'Clicked Convert to customer for lead:', leadName);
 
-  // Wait for the page to fully load before taking screenshot for debugging modal fields
-  await page.waitForLoadState('networkidle');
-  await page.waitForTimeout(1000); // Extra wait for UI updates
-  // Removed routine convert-to-customer-modal screenshot for optimization
-  // Removed pause for normal test execution
-
-  // Debug: log Convert to Customer modal HTML before filling PAN/GST
-
-  // Wait for the Save button with id 'custformsubmit' to be visible and click it
-  // Robustly fill PAN and GST fields before saving
-  // Wait for modal to be fully loaded
-  const convertModal = page.locator('.modal:visible');
-  await expect(convertModal).toBeVisible({ timeout: 10000 });
-
-  // Try multiple selector strategies for PAN and GST fields
-        services: selectedServices
-  let panInput = convertModal.locator("input[name='pan_num']");
-  if (!(await panInput.count())) panInput = convertModal.locator("#pan_num");
-  if (!(await panInput.count())) panInput = page.locator("input[name='pan_num']");
-  if (!(await panInput.count())) panInput = page.locator("#pan_num");
-  let gstInput = convertModal.locator("input[name='vat']");
-  if (!(await gstInput.count())) gstInput = convertModal.locator("input[name='gst']");
-  if (!(await gstInput.count())) gstInput = page.locator("input[name='vat']");
-  if (!(await gstInput.count())) gstInput = page.locator("input[name='gst']");
-
-  // Generate realistic PAN and GST numbers
-  function generatePAN(): string {
-    const letters = () => Array.from({length: 5}, () => String.fromCharCode(65 + Math.floor(Math.random() * 26))).join('');
-    const digits = () => String(Math.floor(1000 + Math.random() * 9000));
-    const lastLetter = String.fromCharCode(65 + Math.floor(Math.random() * 26));
-    return `${letters()}${digits()}${lastLetter}`;
-  }
-  function generateGST(pan: string): string {
-    // GST format: 2 digits (state code) + PAN (10 chars) + 1 entity code + Z + 1 checksum (alphanumeric)
-    // Example: 27ABCDE1234F1Z5
-    const stateCode = String(Math.floor(1 + Math.random() * 35)).padStart(2, '0'); // 01-35
-    // PAN should be 5 letters + 4 digits + 1 letter
-    let panPart = pan;
-    if (!/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(pan)) {
-      panPart = 'ABCDE1234F';
-    }
-    const entityCode = '1';
-    const defaultZ = 'Z';
-    const checksum = Math.random() < 0.5 ? String.fromCharCode(65 + Math.floor(Math.random() * 26)) : String(Math.floor(Math.random() * 10));
-    return `${stateCode}${panPart}${entityCode}${defaultZ}${checksum}`;
-  }
-  const panValue = generatePAN();
-  const gstValue = generateGST(panValue);
-
-  // Fill PAN and GST fields
-  let panFilled = false, gstFilled = false;
-  for (let i = 0; i < 3; i++) {
-    if (!panFilled && panInput && await panInput.count()) {
-      await panInput.first().fill(panValue);
-      panFilled = true;
-  CommonHelper.logger('INFO', 'Entered PAN Number:', panValue);
-    }
-    if (!gstFilled && gstInput && await gstInput.count()) {
-      await gstInput.first().fill(gstValue);
-      gstFilled = true;
-  CommonHelper.logger('INFO', 'Entered GST Number:', gstValue);
-    }
-    if (panFilled && gstFilled) break;
-    await page.waitForTimeout(1000);
-  }
-  if (!panFilled) {
-    console.warn('PAN Number field not found');
-  }
-  if (!gstFilled) {
-    console.warn('GST Number field not found');
-  }
-
-  // Update abis_execution_details.json in nested format
-
-  const saveCustomerBtn = page.locator('#custformsubmit');
-  await expect(saveCustomerBtn).toBeVisible({ timeout: 15000 });
-  await expect(saveCustomerBtn).toBeEnabled();
-  await saveCustomerBtn.click();
-  CommonHelper.logger('STEP', 'Clicked Save after Convert to customer');
-
-  await expect(page.locator('a[data-group="profile"]')).toBeVisible({ timeout: 15000 });
-  // Customer conversion screenshot
-  // Removed routine customer conversion screenshot for optimization
-  // --- Capture Client ID from page content ---
-  // Client ID starts with "#" and is a number at the beginning of the page
-  await page.waitForTimeout(1000); // Wait for page to settle after conversion
-  let clientId = '';
-  const pageText = await page.evaluate(() => document.body.innerText);
-  const clientIdMatch = pageText.match(/^\s*#\d+/m);
-  if (clientIdMatch) {
-    clientId = clientIdMatch[0].trim();
-  CommonHelper.logger('INFO', 'Captured Client ID:', clientId);
-  } else {
-  CommonHelper.logger('WARN', 'Client ID not found at beginning of page.');
-  }
-
-
-  // Next workflow: Click the Profile tab
-  // Use a more specific selector for the Profile tab to avoid strict mode violation
-  const profileTab = page.locator('a[data-group="profile"]');
-  await expect(profileTab).toBeVisible({ timeout: 10000 });
-  await profileTab.click();
-  CommonHelper.logger('STEP', 'Profile tab clicked');
-
-  // Next workflow: Click the Customer Admins tab
-
-
-  const adminsTab = page.locator('button, a', { hasText: 'Customer Admins' });
-  await expect(adminsTab).toBeVisible({ timeout: 10000 });
-  await adminsTab.click();
-  CommonHelper.logger('STEP', 'Customer Admins tab clicked');
-
-  // Wait for the tab panel to be visible
-  const adminsPanel = page.locator('div[role="tabpanel"]:has-text("Assign Admin")');
-  await adminsPanel.waitFor({ state: 'visible', timeout: 15000 }).catch(() => {});
-
-  // Retry logic for Assign Admin button
-  let assignAdminBtn = page.locator('button, a', { hasText: 'Assign Admin' });
-  for (let i = 0; i < 3; i++) {
-    if (await assignAdminBtn.isVisible()) break;
-    await adminsTab.click();
-    await page.waitForTimeout(2000);
-    assignAdminBtn = page.locator('button, a', { hasText: 'Assign Admin' });
-  }
-  await expect(assignAdminBtn).toBeVisible({ timeout: 15000 });
-  await assignAdminBtn.click();
-  CommonHelper.logger('STEP', 'Assign Admin button clicked');
-
-  // Wait for modal to appear
-  let adminsModal = page.locator('#customer_admins_assign');
-  await expect(adminsModal).toBeVisible({ timeout: 20000 });
-  if (!(await adminsModal.isVisible())) {
-    await page.screenshot({ path: 'customer-admins-modal-debug.png', fullPage: true });
-    throw new Error('Customer Admins modal not found. Screenshot saved for debugging.');
-  }
-
-  // Select a random option from dropdown in modal
-  const dropdown = adminsModal.locator('select');
-  await expect(dropdown).toBeVisible({ timeout: 10000 });
-  const options = await dropdown.locator('option').allTextContents();
-  const indices = options.map((_, i) => i).filter(i => i > 0);
-  const randomIndex = indices[Math.floor(Math.random() * indices.length)];
-  await dropdown.selectOption({ index: randomIndex });
-  let selectedOption = '';
-  if (await adminsModal.isVisible() && await dropdown.isVisible()) {
-  selectedOption = (await dropdown.locator('option:checked').textContent()) || '';
-  CommonHelper.logger('INFO', 'Randomly selected Customer Admin:', selectedOption);
-  } else {
-  CommonHelper.logger('WARN', 'Dropdown or modal not visible after selecting option, skipping reading selected option.');
-  }
-
-  // Click Save in modal
-  const saveAdminBtn = adminsModal.locator('button, a', { hasText: 'Save' });
-  await expect(saveAdminBtn).toBeVisible({ timeout: 10000 });
-  await saveAdminBtn.click();
-  CommonHelper.logger('STEP', 'Customer Admin modal Save clicked');
-
-  await expect(adminsModal).not.toBeVisible({ timeout: 15000 });
-  // Customer admin added screenshot
-  // Removed routine customer admin added screenshot for optimization
+  // Convert lead to customer and assign admin via helper
+  const customerHelper = new CustomerHelper(page, APP_BASE_URL!);
+  const { clientId, customerAdmin } = await customerHelper.convertToCustomerAndAssignAdmin(leadName, leadModal);
 
   // Update abis_execution_details.json in nested format (now includes customerAdmin)
   let detailsJson = {
@@ -252,9 +91,7 @@ test('ABIS Sanity @sanity', async ({ page }) => {
     company: {
       clientId,
       company,
-      pan: panValue,
-      gst: gstValue,
-      customerAdmin: selectedOption?.trim() || ''
+      customerAdmin: customerAdmin?.trim() || ''
     }
   };
   writeAbisExecutionDetails(detailsJson);
