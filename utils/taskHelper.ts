@@ -435,9 +435,24 @@ export class TaskHelper {
 
   private async forceRemoveModal(): Promise<void> {
     await this.page.evaluate(() => {
-      const modals = document.querySelectorAll('.modal:visible, .modal.show');
-      modals.forEach(m => m.parentNode && m.parentNode.removeChild(m));
-      const backdrops = document.querySelectorAll('.modal-backdrop');
+      // Use only valid selectors in the browser. ':visible' is a jQuery pseudo-selector
+      // and isn't supported by querySelectorAll. Select elements with the
+      // Bootstrap-visible class ('.modal.show') then filter by computed style to
+      // replicate the ':visible' semantics before removing them.
+      const modals = Array.from(document.querySelectorAll('.modal.show'));
+      const visibleModals = modals.filter(m => {
+        try {
+          const style = window.getComputedStyle(m);
+          const rect = m.getBoundingClientRect();
+          return style && style.display !== 'none' && style.visibility !== 'hidden' && (rect.width > 0 || rect.height > 0);
+        } catch (e) {
+          return false;
+        }
+      });
+      visibleModals.forEach(m => m.parentNode && m.parentNode.removeChild(m));
+
+      // Remove any modal backdrops
+      const backdrops = Array.from(document.querySelectorAll('.modal-backdrop'));
       backdrops.forEach(b => b.parentNode && b.parentNode.removeChild(b));
     });
   }
