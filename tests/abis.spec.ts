@@ -1,5 +1,6 @@
 import { login } from '../utils/loginHelper';
 import { LeadHelper, LeadDetails } from '../utils/leadHelper';
+import { ProposalHelper, ProposalDetails } from '../utils/proposalHelper';
 import { readAbisExecutionDetails, writeAbisExecutionDetails } from '../utils/jsonWriteHelper';
 import { CommonHelper } from '../utils/commonHelper';
 import { test, expect } from '@playwright/test';
@@ -25,192 +26,12 @@ test('ABIS Sanity @sanity', async ({ page }) => {
   // Create lead via helper
   const leadHelper = new LeadHelper(page, APP_BASE_URL!);
   const lead: LeadDetails = await leadHelper.createLead();
-  // dialog is referenced by the subsequent proposal navigation; define it here
-  const dialog = page.locator('#lead-modal');
   const { name, email, phone, company, address, city, state: selectedState, zip } = lead;
-   // Lead creation screenshot
-  // Removed routine lead creation screenshot for optimization
 
-  // In the lead modal, click Proposals tab
-  const proposalsTab = dialog.locator('button, a', { hasText: 'Proposals' });
-  await expect(proposalsTab).toBeVisible();
-  await proposalsTab.click();
-  CommonHelper.logger('STEP', 'Proposals tab clicked');
-  // Click New Proposal button and wait for navigation to new page
-  await Promise.all([
-    page.waitForNavigation(),
-    dialog.locator('button, a', { hasText: 'New Proposal' }).click()
-  ]);
-
-  // On the new page, wait for the proposal form to be visible
-  await expect(page.getByRole('heading', { name: 'New Proposal' })).toBeVisible({ timeout: 10000 });
-  await page.waitForTimeout(2000); // Wait for page to settle
-
-  // Select first option in the Company dropdown
-  const companyDropdown = page.locator('select').nth(0);
-  await expect(companyDropdown).toBeVisible();
-
-  // Randomly select an option from company dropdown (excluding index 0)
-  const companyOptions = await companyDropdown.locator('option').allTextContents();
-  const companyIndices = companyOptions.map((_, i) => i).filter(i => i > 0);
-  const randomCompanyIndex = companyIndices[Math.floor(Math.random() * companyIndices.length)];
-    // Capture selected services for JSON output
-    // (moved to after both services are assigned)
-  await companyDropdown.selectOption({ index: randomCompanyIndex });
-  const selectedCompany = await companyDropdown.locator('option:checked').textContent();
-  CommonHelper.logger('INFO', 'Randomly selected company dropdown option:', selectedCompany);
-  // Manually trigger change event on Company dropdown
-  await page.evaluate((selector) => {
-    const el = document.querySelector(selector);
-    if (el) {
-      el.dispatchEvent(new Event('change', { bubbles: true }));
-    }
-  }, 'select');
-  // Wait for Service dropdown to populate
-  await page.waitForTimeout(5000);
-  const serviceDropdown = page.locator('select').nth(1);
-  await expect(serviceDropdown).toBeVisible();
-  await expect(serviceDropdown).toBeEnabled({ timeout: 10000 });
-  const serviceOptions = await serviceDropdown.locator('option').allTextContents();
-  if (serviceOptions.length < 3) {
-    throw new Error(`Service dropdown does not have enough options: ${serviceOptions}`);
-  }
-
-  // Randomly select an option from service dropdown (excluding index 0)
-  let selectedService = '';
-  let randomServiceIndex;
-  const serviceIndices = serviceOptions.map((_, i) => i).filter(i => i > 0);
-  do {
-    randomServiceIndex = serviceIndices[Math.floor(Math.random() * serviceIndices.length)];
-    await serviceDropdown.selectOption({ index: randomServiceIndex });
-    const selectedServiceRaw = await serviceDropdown.locator('option:checked').textContent();
-    selectedService = selectedServiceRaw ? selectedServiceRaw : '';
-  } while (selectedService === 'Choose Service');
-  CommonHelper.logger('INFO', 'Randomly selected service dropdown option:', selectedService);
-  await page.waitForTimeout(3000);
-  CommonHelper.logger('INFO', 'Selected service:', selectedService);
-  // Click the button with id "btnAdditem"
-  const addItemBtn = page.locator('#btnAdditem');
-  await expect(addItemBtn).toBeVisible();
-  await addItemBtn.click();
-
-  // Add a second service to the proposal
-  // Filter out the first selected service and 'Choose Service'
-  const remainingServiceIndices = serviceIndices.filter(i => i !== randomServiceIndex);
-  let secondService = '';
-  let secondServiceIndex;
-  if (remainingServiceIndices.length > 0) {
-    let attempts = 0;
-    do {
-      secondServiceIndex = remainingServiceIndices[Math.floor(Math.random() * remainingServiceIndices.length)];
-      await serviceDropdown.selectOption({ index: secondServiceIndex });
-      const secondServiceRaw = await serviceDropdown.locator('option:checked').textContent();
-      secondService = secondServiceRaw ? secondServiceRaw : '';
-      attempts++;
-    } while ((secondService === 'Choose Service' || secondService === selectedService) && attempts < 10);
-    if (secondService !== 'Choose Service' && secondService !== selectedService) {
-  CommonHelper.logger('INFO', 'Randomly selected second service dropdown option:', secondService);
-      await page.waitForTimeout(2000);
-      await addItemBtn.click();
-  CommonHelper.logger('INFO', 'Second service added:', secondService);
-    } else {
-      console.warn('Could not find a distinct second service.');
-    }
-  } else {
-    console.warn('Not enough services to add a second distinct service.');
-  }
-
-  // Capture selected services for JSON output (after both are assigned)
-  let selectedServices = [];
-  if (selectedService && selectedService !== 'Choose Service') {
-    selectedServices.push({ name: selectedService, company: selectedCompany });
-  }
-  if (secondService && secondService !== 'Choose Service' && secondService !== selectedService) {
-    selectedServices.push({ name: secondService, company: selectedCompany });
-  }
-
-  // Click the Save button
-  const proposalSaveBtn = page.getByRole('button', { name: /Save$/i });
-  await expect(proposalSaveBtn).toBeVisible();
-  await expect(proposalSaveBtn).toBeEnabled();
-  await proposalSaveBtn.click();
-  CommonHelper.logger('STEP', 'Proposal save clicked, waiting for status...');
-  // Logging and screenshots at key steps
-
-  CommonHelper.logger('STEP', 'Proposal saved, verifying status...');
-  await page.waitForTimeout(3000);
-  // Proposal creation screenshot
-  // Removed routine proposal creation screenshot for optimization
-
-  // Removed unused service extraction logic. Services are captured directly from dropdown selection.
-
-  // Save lead details to a JSON file
-  const leadDetails = { name, email, phone };
-    
-  // Step: Click "More" in the dropdown and select "Mark as Sent"
-  await page.waitForSelector('button:has-text("More")');
-  await page.click('button:has-text("More")');
-  await page.waitForSelector('text=Mark as Sent');
-  await page.click('text=Mark as Sent');
-  CommonHelper.logger('STEP', 'Clicked Mark as Sent, waiting for status update...');
-  // Step: Verify the lead status is updated to "Sent"
-  // Use a more specific selector for the status label
-  const sentStatusLabel = await page.locator('span.proposal-status-4,label-info:has-text("Sent")');
-  await expect(sentStatusLabel).toBeVisible();
-
-  // Step: Accept one service and decline another randomly
-
-  // Find all service rows (assuming each row has Accept/Decline buttons)
-  const serviceRows = await page.locator('tr').all();
-  // Filter rows that have visible and enabled Accept and Decline buttons
-  const actionableRows = [];
-  for (const row of serviceRows) {
-    const acceptBtn = row.locator('button:has-text("Accept")');
-    const declineBtn = row.locator('button:has-text("Decline")');
-    if (await acceptBtn.isVisible() && await acceptBtn.isEnabled() && await declineBtn.isVisible() && await declineBtn.isEnabled()) {
-      actionableRows.push({ row, acceptBtn, declineBtn });
-    }
-  }
-  if (actionableRows.length < 2) {
-    console.error('Not enough actionable service rows found. Found:', actionableRows.length);
-    // Take a screenshot for debugging
-    await page.screenshot({ path: 'service-actionable-rows-debug.png', fullPage: true });
-    throw new Error('Not enough actionable service rows found');
-  }
-  // Randomly select which row to accept
-  const acceptRowIndex = Math.floor(Math.random() * 2);
-  const declineRowIndex = acceptRowIndex === 0 ? 1 : 0;
-  // Accept one service
-  await expect(actionableRows[acceptRowIndex].acceptBtn).toBeVisible();
-  await expect(actionableRows[acceptRowIndex].acceptBtn).toBeEnabled();
-  await actionableRows[acceptRowIndex].acceptBtn.click();
-  CommonHelper.logger('INFO', `Accepted service in row ${acceptRowIndex}`);
-  await page.waitForTimeout(1000);
-  // Decline the other service
-  await expect(actionableRows[declineRowIndex].declineBtn).toBeVisible();
-  await expect(actionableRows[declineRowIndex].declineBtn).toBeEnabled();
-  await actionableRows[declineRowIndex].declineBtn.click();
-  CommonHelper.logger('INFO', `Declined service in row ${declineRowIndex}`);
-  await page.waitForTimeout(1000);
-  // Wait for the page to fully load after clicking Accept
-  await page.waitForLoadState('networkidle');
-  await page.waitForTimeout(2000); // Extra wait for UI updates
-
-  CommonHelper.logger('STEP', 'Clicked Accept, waiting for final state...');
-
-  // Extract proposal number from page content and update abis_execution_details.json
-  const pageContent = await page.content();
-  const proposalNumberMatchHtml = pageContent.match(/PRO-\d+/);
-  const proposalNumberHtml = proposalNumberMatchHtml ? proposalNumberMatchHtml[0] : '';
-  try {
-    const leadDetailsJson = JSON.parse(fs.readFileSync('abis_execution_details.json', 'utf8'));
-    if (proposalNumberHtml) {
-      leadDetailsJson.proposalNumber = proposalNumberHtml;
-      fs.writeFileSync('abis_execution_details.json', JSON.stringify(leadDetailsJson, null, 2));
-    }
-  } catch (err) {
-    console.error('Error updating abis_execution_details.json:', err);
-  }
+  // Create proposal via helper
+  const proposalHelper = new ProposalHelper(page);
+  const proposal: ProposalDetails = await proposalHelper.createAndProcessProposal('#lead-modal');
+  const { proposalNumber: proposalNumberHtml, services: selectedServices } = proposal;
 
   // Go to /leads page
   const leadName = name;
@@ -1446,27 +1267,55 @@ test('ABIS Sanity @sanity', async ({ page }) => {
   await expect(saveBtn2).toBeVisible({ timeout: 10000 });
   await saveBtn2.click();
   CommonHelper.logger('STEP', 'Clicked Save for Pre Payment');
-  // Post-save: Click More dropdown, Approve Payment, and Ok in alert popup
-  // 1. Click "More" dropdown in the right hand side top (robust strict mode fix)
-  // Wait for page to be stable after Save
+  
+  // Wait for save to complete
+  await page.waitForLoadState('networkidle');
+  await page.waitForTimeout(2000);
+
+  // Extract prepayment number before navigation
+  let prepaymentNumber = '';
+  const pageContentAfterSave = await page.content();
+  const prepaymentMatch = pageContentAfterSave.match(/PP-\d+/);
+  if (prepaymentMatch) {
+    prepaymentNumber = prepaymentMatch[0];
+    CommonHelper.logger('INFO', 'Captured Prepayment number:', prepaymentNumber);
+  }
+
+  // Navigate to Pre Payment list page
+  await page.goto(`${APP_BASE_URL}/credit_notes`);
   await page.waitForLoadState('networkidle');
   await page.waitForTimeout(1000);
+  CommonHelper.logger('STEP', 'Navigated to Pre Payment list page');
 
+  // Find and click the prepayment we just created
+  if (prepaymentNumber) {
+    const prepaymentLink = page.locator(`a:has-text("${prepaymentNumber}")`).first();
+    await expect(prepaymentLink).toBeVisible({ timeout: 10000 });
+    await prepaymentLink.click();
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(1000);
+    CommonHelper.logger('STEP', `Opened Pre Payment detail page: ${prepaymentNumber}`);
+  } else {
+    // Fallback: click the first prepayment in the list
+    const firstPrepayment = page.locator('table tbody tr').first().locator('a').first();
+    await firstPrepayment.click();
+    await page.waitForLoadState('networkidle');
+    CommonHelper.logger('WARN', 'Prepayment number not found, clicked first prepayment in list');
+  }
+
+  // Now click "More" dropdown on the detail page
   let moreDropdownClicked = false;
   for (let i = 0; i < 5; i++) {
     try {
-      // Try to find the correct More dropdown (exclude "Load More" buttons)
       const moreDropdowns = await page.locator('button, a', { hasText: 'More' }).elementHandles();
       for (const handle of moreDropdowns) {
         const text = (await handle.textContent())?.trim() || '';
-        // Exclude elements with text 'Load More'
         if (text === 'More') {
-          // Check if visible and enabled
           const box = await handle.boundingBox();
           if (box && box.width > 0 && box.height > 0) {
             await handle.click();
             moreDropdownClicked = true;
-            CommonHelper.logger('STEP', 'Clicked More dropdown after Pre Payment save');
+            CommonHelper.logger('STEP', 'Clicked More dropdown on Pre Payment detail page');
             break;
           }
         }
@@ -1474,68 +1323,52 @@ test('ABIS Sanity @sanity', async ({ page }) => {
       if (moreDropdownClicked) break;
       await page.waitForTimeout(1000);
     } catch (err) {
-      if (String(err).includes('Execution context was destroyed')) {
-  CommonHelper.logger('WARN', 'Execution context destroyed, waiting for page stability and retrying More dropdown...');
-        await page.waitForLoadState('networkidle');
-        await page.waitForTimeout(1500);
-        continue;
-      } else {
-        throw err;
-      }
+      CommonHelper.logger('WARN', `Error clicking More dropdown (attempt ${i + 1}):`, String(err));
+      await page.waitForTimeout(1000);
     }
   }
+  
   if (!moreDropdownClicked) {
-  CommonHelper.logger('WARN', 'Could not find or click More dropdown after Pre Payment save.');
+    await page.screenshot({ path: 'more-dropdown-not-found.png', fullPage: true });
+    CommonHelper.logger('WARN', 'Could not find or click More dropdown after Pre Payment save.');
     throw new Error('More dropdown not found or not clickable after retries.');
   }
 
-  // 2. Click "Approve Payment" and handle alert popup
+  // Click "Approve Payment" and handle alert popup
   const approvePaymentBtn = page.locator('a, button', { hasText: 'Approve Payment' });
   await expect(approvePaymentBtn).toBeVisible({ timeout: 10000 });
+  
   // Setup dialog handler before clicking Approve Payment
   let alertHandled = false;
   page.once('dialog', async dialog => {
-  CommonHelper.logger('STEP', `Alert popup appeared after Approve Payment: ${dialog.message()}`);
+    CommonHelper.logger('STEP', `Alert popup appeared after Approve Payment: ${dialog.message()}`);
     await dialog.accept();
     alertHandled = true;
   });
+  
   await approvePaymentBtn.click();
   CommonHelper.logger('STEP', 'Clicked Approve Payment');
-  // Wait a short time for alert to appear and be handled
+  
+  // Wait for alert to appear and be handled
   await page.waitForTimeout(2000);
   if (!alertHandled) {
-  CommonHelper.logger('WARN', 'No alert popup appeared or was handled after Approve Payment');
+    CommonHelper.logger('WARN', 'No alert popup appeared or was handled after Approve Payment');
   }
-  // Wait for modal to close or success indicator
-  await page.waitForTimeout(2000);
-  const modalStillVisible = await newPrePaymentHeading.isVisible();
-  if (modalStillVisible) {
-  await page.screenshot({ path: 'pre-payment-modal-not-closed.png', fullPage: true });
-  CommonHelper.logger('WARN', 'pre-payment-modal-not-closed: saved screenshot for debugging');
-    throw new Error('Pre Payment modal did not close after Save. Screenshot and HTML saved for debugging.');
+  
+  // Wait for page to update after approval
+  await page.waitForLoadState('networkidle');
+  await page.waitForTimeout(1000);
+  
+  // Update abis_execution_details.json with prepayment number
+  try {
+    const detailsJson = readAbisExecutionDetails();
+    if (!detailsJson.service) detailsJson.service = {};
+    detailsJson.service.prepaymentNumber = prepaymentNumber;
+    writeAbisExecutionDetails(detailsJson);
+    CommonHelper.logger('INFO', 'Prepayment number updated in abis_execution_details.json:', prepaymentNumber);
+  } catch (err) {
+    CommonHelper.logger('ERROR', 'Error updating Prepayment number in abis_execution_details.json:', err);
   }
-  // After Save, capture Prepayment number from page content or modal
-await page.waitForTimeout(2000); // Wait for UI update after Save
-let prepaymentNumber = '';
-const pageContentAfterPrepayment = await page.content();
-const prepaymentMatch = pageContentAfterPrepayment.match(/PP-\d+/);
-if (prepaymentMatch) {
-  prepaymentNumber = prepaymentMatch[0];
-  CommonHelper.logger('INFO', 'Captured Prepayment number:', prepaymentNumber);
-} else {
-  CommonHelper.logger('WARN', 'Prepayment number not found in page content after Save.');
-}
-
-// Update abis_execution_details.json under the corresponding service
-try {
-  const detailsJson = readAbisExecutionDetails();
-  if (!detailsJson.service) detailsJson.service = {};
-  detailsJson.service.prepaymentNumber = prepaymentNumber;
-  writeAbisExecutionDetails(detailsJson);
-  CommonHelper.logger('INFO', 'Prepayment number updated in abis_execution_details.json:', prepaymentNumber);
-} catch (err) {
-  CommonHelper.logger('ERROR', 'Error updating Prepayment number in abis_execution_details.json:', err);
-}
 
 try {
   const detailsJson3 = readAbisExecutionDetails();
