@@ -14,7 +14,7 @@ pipeline {
             steps {
                 checkout([
                     $class: 'GitSCM',
-                    branches: [[name: '*/main']],
+                    branches: [[name: '*/externalized-helpers']],
                     userRemoteConfigs: [[
                         url: 'git@github.com:sakthisiga/pw-mcp.git'
                     ]]

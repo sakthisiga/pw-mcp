@@ -3,21 +3,62 @@ import { CommonHelper } from './commonHelper';
 import { readAbisExecutionDetails, writeAbisExecutionDetails } from './jsonWriteHelper';
 
 /**
- * InvoiceHelper - Handles Invoice conversion, Apply Credits, Payment Recording, and Approval
+ * InvoiceHelper - Handles complete Invoice workflow from conversion to payment approval
+ * 
+ * @class InvoiceHelper
+ * @description Manages the full invoice lifecycle including:
+ * - Converting Proforma to Invoice
+ * - Extracting and storing invoice details
+ * - Applying credits to reduce invoice amount
+ * - Recording payment with transaction details
+ * - Approving payment through workflow
+ * - Navigating back to invoice page
+ * 
+ * @example
+ * ```typescript
+ * const invoiceHelper = new InvoiceHelper(page);
+ * await invoiceHelper.processInvoiceWorkflow();
+ * ```
  * 
  * Main Workflow:
  * 1. Convert Proforma to Invoice
  * 2. Extract Invoice details (number, date, due date, sales agent, total)
- * 3. Apply Credits
+ * 3. Apply Credits (reduce invoice amount)
  * 4. Record Payment with transaction details
- * 5. Approve Payment
- * 6. Navigate back to Invoice
+ * 5. Approve Payment through More dropdown
+ * 6. Navigate back to Invoice via payment link
+ * 
+ * @author ABIS Test Automation Team
+ * @version 1.0.0
  */
 export class InvoiceHelper {
+  /**
+   * Creates an instance of InvoiceHelper
+   * @param {Page} page - Playwright Page object for browser interactions
+   */
   constructor(private page: Page) {}
 
   /**
-   * Main method: Complete invoice workflow from conversion to approval
+   * Executes the complete invoice workflow from conversion to approval
+   * 
+   * @async
+   * @returns {Promise<void>}
+   * @throws {Error} If any step in the invoice workflow fails
+   * 
+   * @description This is the main orchestration method that:
+   * 1. Converts Proforma to Invoice
+   * 2. Captures invoice details and saves to JSON
+   * 3. Applies credits to invoice
+   * 4. Records payment with random transaction ID
+   * 5. Approves the payment
+   * 6. Navigates back to invoice page
+   * 
+   * @example
+   * ```typescript
+   * const invoiceHelper = new InvoiceHelper(page);
+   * await invoiceHelper.processInvoiceWorkflow();
+   * // Invoice created, payment recorded and approved
+   * ```
    */
   async processInvoiceWorkflow(): Promise<void> {
     await this.convertProformaToInvoice();
@@ -29,7 +70,25 @@ export class InvoiceHelper {
   }
 
   /**
-   * Convert Proforma to Invoice
+   * Converts an accepted Proforma to an Invoice
+   * 
+   * @async
+   * @private
+   * @returns {Promise<void>}
+   * @throws {Error} If conversion fails or success indicator not found
+   * 
+   * @description Performs the following steps:
+   * 1. Waits for page stability after Proforma save
+   * 2. Clicks "Convert to Invoice" dropdown button (retries up to 5 times)
+   * 3. Selects "Convert" option from dropdown
+   * 4. Waits for navigation or success indicator (toast/alert)
+   * 5. Takes screenshot on failure for debugging
+   * 
+   * @example
+   * ```typescript
+   * await this.convertProformaToInvoice();
+   * // Proforma is now converted to Invoice
+   * ```
    */
   private async convertProformaToInvoice(): Promise<void> {
     try {
@@ -81,7 +140,27 @@ export class InvoiceHelper {
   }
 
   /**
-   * Extract and save Invoice details using node-html-parser
+   * Extracts invoice details from the page and saves to JSON file
+   * 
+   * @async
+   * @private
+   * @returns {Promise<void>}
+   * 
+   * @description Uses node-html-parser to extract:
+   * - Invoice Number (from span#invoice-number or regex pattern)
+   * - Invoice Date (from bold label or regex)
+   * - Due Date (from bold label or regex)
+   * - Sales Agent (from bold label or regex)
+   * - Total Amount (from table rows, excluding Sub Total/Grand Total)
+   * 
+   * All extracted values are written to abis_execution_details.json under the 'invoice' key.
+   * Takes a diagnostic screenshot if any required field is missing.
+   * 
+   * @example
+   * ```typescript
+   * await this.captureInvoiceDetails();
+   * // Invoice details saved to JSON file
+   * ```
    */
   private async captureInvoiceDetails(): Promise<void> {
     const invoicePageContent = await this.page.content();
@@ -189,7 +268,28 @@ export class InvoiceHelper {
   }
 
   /**
-   * Apply Credits to Invoice
+   * Applies credit amount to reduce the invoice balance
+   * 
+   * @async
+   * @private
+   * @returns {Promise<void>}
+   * @throws {Error} If Apply Credits modal or input field not found
+   * 
+   * @description Workflow:
+   * 1. Clicks "Apply Credits" link to open modal
+   * 2. Waits for modal to appear and become visible
+   * 3. Finds the first visible input field in the modal (retries up to 20 times)
+   * 4. Fills input with "100" as the credit amount
+   * 5. Clicks "Apply" button to submit
+   * 
+   * Includes robust input field detection with multiple retry attempts
+   * and saves modal HTML for debugging if input is not found.
+   * 
+   * @example
+   * ```typescript
+   * await this.applyCredits();
+   * // 100 credits applied to invoice
+   * ```
    */
   private async applyCredits(): Promise<void> {
     const applyCreditsLink = this.page.locator('a[data-toggle="modal"][data-target="#apply_credits"]', { hasText: 'Apply Credits' });
@@ -248,7 +348,28 @@ export class InvoiceHelper {
   }
 
   /**
-   * Record Payment with transaction details
+   * Records a payment for the invoice with transaction details
+   * 
+   * @async
+   * @private
+   * @returns {Promise<void>}
+   * @throws {Error} If payment panel not found or required fields missing
+   * 
+   * @description Payment recording workflow:
+   * 1. Clicks "Payment" button to open payment panel
+   * 2. Waits for payment panel to appear (uses robust panel detection)
+   * 3. Selects a random valid payment mode from dropdown
+   * 4. Generates and enters a random 12-digit alphanumeric transaction ID
+   * 5. Clicks "Save" button to submit payment
+   * 
+   * Payment Mode: Randomly selected from available options (excludes "select" placeholder)
+   * Transaction ID: 12-character random alphanumeric string (A-Z, 0-9)
+   * 
+   * @example
+   * ```typescript
+   * await this.recordPayment();
+   * // Payment recorded with random mode and transaction ID
+   * ```
    */
   private async recordPayment(): Promise<void> {
     // Click Payment button
