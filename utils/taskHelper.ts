@@ -388,10 +388,10 @@ export class TaskHelper {
       await closeBtn.click();
       await this.page.waitForTimeout(500);
       
-      if (await postSaveModal.isVisible() || await this.page.locator('.modal-backdrop').isVisible().catch(() => false)) {
+      if (await postSaveModal.isVisible() || await this.page.locator('.modal-backdrop').first().isVisible().catch(() => false)) {
         await this.forceRemoveModal();
         await this.page.waitForTimeout(500);
-        if (!(await postSaveModal.isVisible()) && !(await this.page.locator('.modal-backdrop').isVisible().catch(() => false))) {
+        if (!(await postSaveModal.isVisible()) && !(await this.page.locator('.modal-backdrop').first().isVisible().catch(() => false))) {
           modalClosed = true;
           CommonHelper.logger('STEP', 'Task modal forcibly removed after Close.');
         } else {
@@ -408,10 +408,10 @@ export class TaskHelper {
         await xBtn.click();
         await this.page.waitForTimeout(500);
         
-        if (await postSaveModal.isVisible() || await this.page.locator('.modal-backdrop').isVisible().catch(() => false)) {
+        if (await postSaveModal.isVisible() || await this.page.locator('.modal-backdrop').first().isVisible().catch(() => false)) {
           await this.forceRemoveModal();
           await this.page.waitForTimeout(500);
-          if (!(await postSaveModal.isVisible()) && !(await this.page.locator('.modal-backdrop').isVisible().catch(() => false))) {
+          if (!(await postSaveModal.isVisible()) && !(await this.page.locator('.modal-backdrop').first().isVisible().catch(() => false))) {
             modalClosed = true;
             CommonHelper.logger('STEP', 'Task modal forcibly removed after X.');
           } else {
@@ -483,7 +483,7 @@ export class TaskHelper {
       await this.page.waitForTimeout(1000);
       
       const stillVisible = await postSaveModal.isVisible();
-      const backdropStillVisible = await this.page.locator('.modal-backdrop').isVisible().catch(() => false);
+      const backdropStillVisible = await this.page.locator('.modal-backdrop').first().isVisible().catch(() => false);
       
       if (!stillVisible && !backdropStillVisible) {
         CommonHelper.logger('INFO', 'Modal and backdrop forcibly removed from DOM.');
@@ -498,7 +498,7 @@ export class TaskHelper {
   }
 
   private async ensureModalClosed(postSaveModal: Locator): Promise<void> {
-    const modalBackdrop = this.page.locator('.modal-backdrop');
+    const modalBackdrop = this.page.locator('.modal-backdrop').first();
     let modalClosed = false;
     
     // Wait for modal to be hidden
