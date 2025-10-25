@@ -175,7 +175,7 @@ test('ABIS Sanity @sanity', async ({ page }) => {
         throw new Error('No service options found after space AJAX search. See diagnostics.');
       }
   } catch (e) {
-  await page.screenshot({ path: 'service-dropdown-arrow-fail.png' });
+  await CommonHelper.safeScreenshot(page, { path: 'service-dropdown-arrow-fail.png' });
   CommonHelper.logger('WARN', 'service-dropdown-arrow-fail: saved screenshot for debugging');
     throw new Error('Service dropdown down arrow or options not visible. Screenshot and HTML saved for debugging.');
   }
@@ -188,7 +188,7 @@ test('ABIS Sanity @sanity', async ({ page }) => {
   // Select the first valid option (not empty)
   const validPaymentMode = paymentModeOptions.find(opt => opt && opt.trim().length > 0);
   if (!validPaymentMode) {
-  await page.screenshot({ path: 'payment-mode-select-not-found.png', fullPage: true });
+  await CommonHelper.safeScreenshot(page, { path: 'payment-mode-select-not-found.png', fullPage: true });
   CommonHelper.logger('WARN', 'payment-mode-select-not-found: saved screenshot for debugging');
     throw new Error('No valid Payment Mode options found. Screenshot and HTML saved for debugging.');
   }
@@ -315,7 +315,7 @@ test('ABIS Sanity @sanity', async ({ page }) => {
   }
   
   if (!moreDropdownClicked) {
-    await page.screenshot({ path: 'more-dropdown-not-found.png', fullPage: true });
+    await CommonHelper.safeScreenshot(page, { path: 'more-dropdown-not-found.png', fullPage: true });
     CommonHelper.logger('WARN', 'Could not find or click More dropdown after Pre Payment save.');
     throw new Error('More dropdown not found or not clickable after retries.');
   }
