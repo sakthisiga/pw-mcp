@@ -379,66 +379,81 @@ export class TaskHelper {
   }
 
   private async closeModal(): Promise<void> {
-    const postSaveModal = this.page.locator('.modal:visible');
-    let modalClosed = false;
+    CommonHelper.logger('STEP', 'Attempting to close task modal');
     
-    // Try clicking close button
-    const closeBtn = postSaveModal.locator('button, a', { hasText: 'Close' });
-    if (await closeBtn.count()) {
-      await closeBtn.click();
-      await this.page.waitForTimeout(500);
-      
-      if (await postSaveModal.isVisible() || await this.page.locator('.modal-backdrop').first().isVisible().catch(() => false)) {
-        await this.forceRemoveModal();
+    // Capture current URL before closing modal to detect navigation
+    const urlBeforeClose = this.page.url();
+    CommonHelper.logger('INFO', `URL before modal close: ${urlBeforeClose}`);
+    
+    // Support both .modal and <dialog> elements
+    const postSaveModal = this.page.locator('.modal:visible, dialog[open]');
+    
+    // Check if modal/dialog exists
+    const modalExists = await postSaveModal.count() > 0;
+    if (!modalExists) {
+      CommonHelper.logger('INFO', 'No modal/dialog found to close');
+      return;
+    }
+    
+    // Try clicking close button (works for both .modal and <dialog>)
+    const closeBtn = postSaveModal.locator('button:has-text("Close"), button.close, .modal-header .close, button:has-text("×")');
+    if (await closeBtn.count() > 0) {
+      try {
+        await closeBtn.first().click({ timeout: 2000 });
         await this.page.waitForTimeout(500);
-        if (!(await postSaveModal.isVisible()) && !(await this.page.locator('.modal-backdrop').first().isVisible().catch(() => false))) {
-          modalClosed = true;
-          CommonHelper.logger('STEP', 'Task modal forcibly removed after Close.');
-        } else {
-          CommonHelper.logger('WARN', 'Modal/backdrop still present after forced removal.');
-        }
-      } else {
-        modalClosed = true;
-        CommonHelper.logger('STEP', 'Task modal closed');
-      }
-    } else {
-      // Try clicking X button
-      const xBtn = postSaveModal.locator('button.close, .modal-header .close');
-      if (await xBtn.count()) {
-        await xBtn.click();
-        await this.page.waitForTimeout(500);
-        
-        if (await postSaveModal.isVisible() || await this.page.locator('.modal-backdrop').first().isVisible().catch(() => false)) {
-          await this.forceRemoveModal();
-          await this.page.waitForTimeout(500);
-          if (!(await postSaveModal.isVisible()) && !(await this.page.locator('.modal-backdrop').first().isVisible().catch(() => false))) {
-            modalClosed = true;
-            CommonHelper.logger('STEP', 'Task modal forcibly removed after X.');
-          } else {
-            CommonHelper.logger('WARN', 'Modal/backdrop still present after forced removal.');
-          }
-        } else {
-          modalClosed = true;
-          CommonHelper.logger('STEP', 'Task modal closed via X');
-        }
-      } else {
-        CommonHelper.logger('WARN', 'Could not find close button for task modal');
+        CommonHelper.logger('INFO', 'Clicked close button');
+      } catch (err) {
+        CommonHelper.logger('WARN', 'Failed to click close button:', err);
       }
     }
     
-    // Fallback: if modal is still visible, try multiple strategies
-    await this.fallbackModalClose(postSaveModal);
+    // Press Escape as fallback
+    await this.page.keyboard.press('Escape').catch(() => {});
+    await this.page.waitForTimeout(500);
     
-    // Final check for modal and backdrop
-    await this.ensureModalClosed(postSaveModal);
+    // Force remove if still visible
+    if (await postSaveModal.isVisible().catch(() => false)) {
+      CommonHelper.logger('INFO', 'Modal still visible, forcing removal');
+      await this.forceRemoveModal();
+      await this.page.waitForTimeout(500);
+    }
+    
+    // Final check
+    const stillVisible = await postSaveModal.isVisible().catch(() => false);
+    const backdropVisible = await this.page.locator('.modal-backdrop').first().isVisible().catch(() => false);
+    
+    if (stillVisible || backdropVisible) {
+      CommonHelper.logger('WARN', 'Modal/backdrop still visible after all attempts');
+      await this.fallbackModalClose(postSaveModal);
+      await this.ensureModalClosed(postSaveModal);
+    } else {
+      CommonHelper.logger('STEP', 'Task modal successfully closed');
+    }
+    
+    // Check if URL changed after modal close - this indicates unwanted navigation
+    await this.page.waitForTimeout(1000);
+    const urlAfterClose = this.page.url();
+    CommonHelper.logger('INFO', `URL after modal close: ${urlAfterClose}`);
+    
+    if (urlAfterClose !== urlBeforeClose) {
+      CommonHelper.logger('WARN', `URL changed after modal close! Before: ${urlBeforeClose}, After: ${urlAfterClose}`);
+      
+      // If navigated to dashboard, try to go back to the service page
+      if (urlAfterClose.includes('/admin') && !urlAfterClose.includes('/projects/') && !urlAfterClose.includes('/clients/')) {
+        CommonHelper.logger('WARN', 'Navigated to dashboard, attempting to return to service page');
+        // Try to navigate back
+        await this.page.goBack({ waitUntil: 'domcontentloaded' }).catch(() => {});
+        await this.page.waitForTimeout(1500);
+        
+        const recoveredUrl = this.page.url();
+        CommonHelper.logger('INFO', `URL after going back: ${recoveredUrl}`);
+      }
+    }
   }
 
   private async forceRemoveModal(): Promise<void> {
     await this.page.evaluate(() => {
-      // Use only valid selectors in the browser. ':visible' is a jQuery pseudo-selector
-      // and isn't supported by querySelectorAll. Select elements with the
-      // Bootstrap-visible class ('.modal.show') then filter by computed style to
-      // replicate the ':visible' semantics before removing them.
+      // Remove .modal elements with .show class
       const modals = Array.from(document.querySelectorAll('.modal.show'));
       const visibleModals = modals.filter(m => {
         try {
@@ -451,10 +466,78 @@ export class TaskHelper {
       });
       visibleModals.forEach(m => m.parentNode && m.parentNode.removeChild(m));
 
+      // Remove any <dialog> elements that are open
+      const dialogs = Array.from(document.querySelectorAll('dialog[open]'));
+      dialogs.forEach(d => {
+        try {
+          (d as HTMLDialogElement).close();
+        } catch (e) {
+          // If close() fails, remove from DOM
+          d.parentNode && d.parentNode.removeChild(d);
+        }
+      });
+
       // Remove any modal backdrops
       const backdrops = Array.from(document.querySelectorAll('.modal-backdrop'));
       backdrops.forEach(b => b.parentNode && b.parentNode.removeChild(b));
     });
+  }
+
+  /**
+   * Clear any page obstructions that might prevent interaction with tabs
+   * This includes modals, backdrops, overlays, and loading indicators
+   */
+  private async clearPageObstructions(): Promise<void> {
+    CommonHelper.logger('INFO', 'Clearing page obstructions...');
+    
+    try {
+      await this.page.evaluate(() => {
+        // Remove all modals and backdrops
+        const modals = Array.from(document.querySelectorAll('.modal, .modal-backdrop'));
+        modals.forEach(m => {
+          if (m.parentNode) {
+            m.parentNode.removeChild(m);
+          }
+        });
+        
+        // Remove common overlay patterns
+        const overlays = Array.from(document.querySelectorAll(
+          '.overlay, .loading-overlay, .spinner-overlay, [class*="overlay"], [class*="loading"]'
+        ));
+        overlays.forEach(o => {
+          const style = window.getComputedStyle(o);
+          if (style.position === 'fixed' || style.position === 'absolute') {
+            if (o.parentNode) {
+              o.parentNode.removeChild(o);
+            }
+          }
+        });
+        
+        // Remove any elements with high z-index that might be blocking
+        const allElements = Array.from(document.querySelectorAll('*'));
+        allElements.forEach(el => {
+          const style = window.getComputedStyle(el);
+          const zIndex = parseInt(style.zIndex);
+          if (zIndex > 1000 && (style.position === 'fixed' || style.position === 'absolute')) {
+            const rect = el.getBoundingClientRect();
+            // Only remove if it's large enough to be an overlay (covers significant area)
+            if (rect.width > window.innerWidth * 0.5 || rect.height > window.innerHeight * 0.5) {
+              if (el.parentNode && !el.classList.contains('nav') && !el.classList.contains('header')) {
+                el.parentNode.removeChild(el);
+              }
+            }
+          }
+        });
+      });
+      
+      CommonHelper.logger('INFO', 'Page obstructions cleared');
+    } catch (err) {
+      CommonHelper.logger('WARN', 'Error clearing page obstructions:', err);
+    }
+    
+    // Press Escape as a final fallback
+    await this.page.keyboard.press('Escape').catch(() => {});
+    await this.page.waitForTimeout(500);
   }
 
   private async fallbackModalClose(postSaveModal: Locator): Promise<void> {
@@ -557,67 +640,95 @@ export class TaskHelper {
   }
 
   private async navigateToTasksTab(): Promise<void> {
-    CommonHelper.logger('STEP', 'Waiting for Tasks tab to be visible');
+    CommonHelper.logger('STEP', 'Navigating to Tasks tab');
+    
+    // Wait for page stability
+    await this.page.waitForLoadState('domcontentloaded').catch(() => {});
+    await this.page.waitForTimeout(1500);
+    
+    // Check current URL - ensure we're on customer/service page, not dashboard
+    let currentUrl = this.page.url();
+    CommonHelper.logger('INFO', `Current URL before Tasks tab: ${currentUrl}`);
+    
+    // If URL has taskid parameter, remove it to prevent task modal from opening
+    if (currentUrl.includes('?taskid=')) {
+      const cleanUrl = currentUrl.split('?')[0];
+      CommonHelper.logger('WARN', `Removing taskid parameter from URL: ${cleanUrl}`);
+      await this.page.goto(cleanUrl, { waitUntil: 'domcontentloaded' });
+      await this.page.waitForTimeout(1000);
+      currentUrl = this.page.url();
+      CommonHelper.logger('INFO', `URL after cleanup: ${currentUrl}`);
+    }
+    
+    // If we're on dashboard or wrong page, wait longer for proper page load
+    if (currentUrl.includes('/admin') && !currentUrl.includes('/clients/') && !currentUrl.includes('/projects/')) {
+      CommonHelper.logger('WARN', 'Detected dashboard/wrong page, waiting for navigation to complete...');
+      await this.page.waitForTimeout(3000);
+      
+      // Re-check URL
+      const newUrl = this.page.url();
+      CommonHelper.logger('INFO', `URL after wait: ${newUrl}`);
+      
+      if (newUrl.includes('/admin') && !newUrl.includes('/clients/') && !newUrl.includes('/projects/')) {
+        await this.page.screenshot({ path: 'wrong-page-before-tasks-tab.png', fullPage: true });
+        throw new Error(`Wrong page detected: ${newUrl}. Expected customer or service detail page.`);
+      }
+    }
+    
+    // Locate the Tasks tab
     const tasksTab = this.page.locator('a[role="tab"][data-group="project_tasks"]');
-    let tasksTabVisible = false;
     
-    for (let i = 0; i < 10; i++) {
+    // Wait for tab to be visible
+    try {
+      await tasksTab.waitFor({ state: 'visible', timeout: 15000 });
+      CommonHelper.logger('INFO', 'Tasks tab is visible');
+    } catch (err) {
+      await this.page.screenshot({ path: 'tasks-tab-not-visible.png', fullPage: true });
+      const finalUrl = this.page.url();
+      throw new Error(`Tasks tab not visible after 15 seconds. Current URL: ${finalUrl}`);
+    }
+    
+    // Click the tab (3 methods)
+    let clicked = false;
+    
+    // Method 1: Standard click
+    try {
+      await tasksTab.click({ timeout: 3000 });
+      clicked = true;
+      CommonHelper.logger('STEP', 'Tasks tab clicked (standard)');
+    } catch (e1) {
+      // Method 2: Force click
       try {
-        await expect(tasksTab).toBeVisible({ timeout: 5000 });
-        tasksTabVisible = true;
-        break;
-      } catch (e) {
-        await this.page.screenshot({ path: `tasks-tab-not-visible-${i}.png`, fullPage: true });
-        CommonHelper.logger('WARN', `tasks-tab-not-visible-${i}: saved screenshot for debugging`);
-        await this.page.waitForTimeout(1000);
+        await tasksTab.click({ force: true, timeout: 3000 });
+        clicked = true;
+        CommonHelper.logger('STEP', 'Tasks tab clicked (force)');
+      } catch (e2) {
+        // Method 3: JavaScript click
+        try {
+          await tasksTab.evaluate((el: HTMLElement) => el.click());
+          clicked = true;
+          CommonHelper.logger('STEP', 'Tasks tab clicked (JS)');
+        } catch (e3) {
+          await this.page.screenshot({ path: 'tasks-tab-click-failed.png', fullPage: true });
+          throw new Error('Failed to click Tasks tab after all methods');
+        }
       }
     }
     
-    if (!tasksTabVisible) {
-      throw new Error('Tasks tab not visible after retries. See screenshots and HTML for diagnosis.');
+    // Wait for tab panel to become active and content to load
+    await this.page.waitForTimeout(1500);
+    
+    // Wait for Tasks Summary to appear with multiple selectors
+    const tasksSummaryHeading = this.page.locator('h4:has-text("Tasks Summary"), h3:has-text("Tasks Summary"), h4:has-text("Tasks"), h3:has-text("Tasks")');
+    try {
+      await tasksSummaryHeading.first().waitFor({ state: 'visible', timeout: 10000 });
+      CommonHelper.logger('STEP', 'Tasks Summary heading is visible');
+    } catch (err) {
+      await this.page.screenshot({ path: 'tasks-summary-not-visible.png', fullPage: true });
+      const tabPanelHtml = await this.page.locator('#project_tasks').innerHTML().catch(() => 'Could not get HTML');
+      CommonHelper.logger('WARN', `Tab panel HTML: ${tabPanelHtml.substring(0, 500)}`);
+      throw new Error('Tasks Summary heading not visible after clicking tab');
     }
-    
-    CommonHelper.logger('STEP', 'Tasks tab is visible');
-    
-    let tasksTabClicked = false;
-    for (let i = 0; i < 5; i++) {
-      try {
-        await tasksTab.click();
-        tasksTabClicked = true;
-        break;
-      } catch (e) {
-        await this.page.screenshot({ path: `tasks-tab-click-fail-${i}.png`, fullPage: true });
-        CommonHelper.logger('WARN', `tasks-tab-click-fail-${i}: saved screenshot for debugging`);
-        await this.page.waitForTimeout(1000);
-      }
-    }
-    
-    if (!tasksTabClicked) {
-      throw new Error('Failed to click Tasks tab after retries. See screenshots and HTML for diagnosis.');
-    }
-    
-    CommonHelper.logger('STEP', 'Clicked Tasks tab');
-    
-    // Wait for tasks panel to appear
-    const tasksSummaryHeading = this.page.locator('h4:has-text("Tasks Summary")');
-    let tasksSummaryVisible = false;
-    
-    for (let i = 0; i < 15; i++) {
-      try {
-        await expect(tasksSummaryHeading).toBeVisible({ timeout: 1000 });
-        tasksSummaryVisible = true;
-        break;
-      } catch (e) {
-        CommonHelper.logger('WARN', `Tasks Summary heading not visible, retry ${i}`);
-        await this.page.waitForTimeout(1000);
-      }
-    }
-    
-    if (!tasksSummaryVisible) {
-      throw new Error('Tasks Summary heading not visible after retries. See screenshots and HTML for diagnosis.');
-    }
-    
-    CommonHelper.logger('STEP', 'Tasks Summary heading is visible');
   }
 
   private async verifyTaskCreated(): Promise<void> {

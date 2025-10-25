@@ -77,6 +77,20 @@ pipeline {
             }
         }
 
+        stage('Publish HTML Report') {
+            steps {
+                publishHTML([
+                    allowMissing: false,
+                    alwaysLinkToLastBuild: true,
+                    keepAll: true,
+                    reportDir: 'playwright-report',
+                    reportFiles: 'index.html',
+                    reportName: 'Playwright Test Report',
+                    reportTitles: 'Playwright Test Results'
+                ])
+            }
+        }
+
         stage('Send Email') {
             steps {
                 script {

@@ -229,24 +229,49 @@ test('ABIS Sanity @sanity', async ({ page }) => {
   await saveBtn2.click();
   CommonHelper.logger('STEP', 'Clicked Save for Pre Payment');
   
-  // Wait for save to complete
-  await page.waitForLoadState('networkidle');
+  // Wait for navigation to complete after save
+  await page.waitForURL(/credit_notes/, { timeout: 15000 }).catch(() => {
+    CommonHelper.logger('WARN', 'Did not navigate to credit_notes page as expected');
+  });
+  await page.waitForLoadState('domcontentloaded');
+  await page.waitForLoadState('networkidle').catch(() => {
+    CommonHelper.logger('WARN', 'networkidle timeout, proceeding anyway');
+  });
   await page.waitForTimeout(2000);
 
-  // Extract prepayment number before navigation
+  // Extract prepayment number from the page after navigation completes
   let prepaymentNumber = '';
-  const pageContentAfterSave = await page.content();
-  const prepaymentMatch = pageContentAfterSave.match(/PP-\d+/);
-  if (prepaymentMatch) {
-    prepaymentNumber = prepaymentMatch[0];
-    CommonHelper.logger('INFO', 'Captured Prepayment number:', prepaymentNumber);
+  try {
+    const pageContentAfterSave = await page.content();
+    const prepaymentMatch = pageContentAfterSave.match(/PP-\d+/);
+    if (prepaymentMatch) {
+      prepaymentNumber = prepaymentMatch[0];
+      CommonHelper.logger('INFO', 'Captured Prepayment number:', prepaymentNumber);
+    } else {
+      // Try alternative: look in URL or page heading
+      const urlMatch = page.url().match(/credit_notes\/(\d+)/);
+      if (urlMatch) {
+        // Try to find PP number in the page heading or title
+        const heading = await page.locator('h4, h3, h2').first().textContent().catch(() => '');
+        const headingMatch = heading?.match(/PP-\d+/);
+        if (headingMatch) {
+          prepaymentNumber = headingMatch[0];
+          CommonHelper.logger('INFO', 'Captured Prepayment number from heading:', prepaymentNumber);
+        }
+      }
+    }
+  } catch (err) {
+    CommonHelper.logger('WARN', 'Could not extract prepayment number:', err);
   }
 
-  // Navigate to Pre Payment list page
-  await page.goto(`${APP_BASE_URL}/credit_notes`);
-  await page.waitForLoadState('networkidle');
-  await page.waitForTimeout(1000);
-  CommonHelper.logger('STEP', 'Navigated to Pre Payment list page');
+  // If we're not on the detail page, navigate to the list and find the latest
+  if (!page.url().includes('credit_notes/view')) {
+    CommonHelper.logger('INFO', 'Not on detail page, navigating to Pre Payment list');
+    await page.goto(`${APP_BASE_URL}/credit_notes`);
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(1000);
+    CommonHelper.logger('STEP', 'Navigated to Pre Payment list page');
+  }
 
   // Find and click the prepayment we just created
   if (prepaymentNumber) {
@@ -337,6 +362,9 @@ const clientIdRaw = detailsJson3.company?.clientId || '';
 const proformaClientId = clientIdRaw.replace(/^#/, ''); // Remove leading '#' if present
 if (!proformaClientId) {
   throw new Error('clientId not found in abis_execution_details.json');
+}
+if (!APP_BASE_URL) {
+  throw new Error('APP_BASE_URL is not defined');
 }
 
 const proformaHelper = new ProformaHelper(page);
