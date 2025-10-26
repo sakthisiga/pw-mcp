@@ -6,7 +6,7 @@ import { ServiceHelper } from '../../utils/sanity/serviceHelper';
 import { TaskHelper } from '../../utils/sanity/taskHelper';
 import { ProformaHelper } from '../../utils/sanity/proformaHelper';
 import { InvoiceHelper } from '../../utils/sanity/invoiceHelper';
-import { readAbisExecutionDetails, writeAbisExecutionDetails } from '../../utils/sanity/jsonWriteHelper';
+import { readAbisExecutionDetails, writeAbisExecutionDetails } from '../../utils/jsonWriteHelper';
 import { CommonHelper } from '../../utils/commonHelper';
 import { test, expect } from '@playwright/test';
 import dotenv from 'dotenv';
