@@ -52,7 +52,7 @@ pipeline {
             steps {
                 checkout([
                     $class: 'GitSCM',
-                    branches: [[name: '*/externalized-helpers']],
+                    branches: [[name: '*/main']],
                     userRemoteConfigs: [[
                         url: 'git@github.com:sakthisiga/pw-mcp.git'
                     ]]
@@ -69,9 +69,6 @@ pipeline {
                         docker ps -q | xargs -r docker stop || true
                         docker ps -aq | xargs -r docker rm || true
                         
-                        # Remove all images
-                        docker images -q | xargs -r docker rmi -f || true
-                        
                         # Clean up dangling images and build cache
                         docker system prune -af --volumes || true
                         
@@ -84,13 +81,16 @@ pipeline {
         stage('Install Dependencies & Run abis.spec.ts') {
             steps {
                 script {
-                    sh """
-                        docker run --rm -v "${WORKSPACE}:/app" -w /app --ipc=host --network=host\
-                        -e ABIS_USERNAME="${env.ABIS_USERNAME}" \
-                        -e ABIS_PASSWORD="${env.ABIS_PASSWORD}" \
-                        -e CI=1 \
-                        ${PLAYWRIGHT_IMAGE} /bin/bash -c "rm -rf node_modules && npm install && npx playwright install chrome && npx playwright test -g "@sanity" --reporter=html || exit 1"
-                    """
+                    ansiColor('xterm') {
+                        sh """
+                            docker run --rm -v "${WORKSPACE}:/app" -w /app --ipc=host --network=host\
+                            -e ABIS_USERNAME="${env.ABIS_USERNAME}" \
+                            -e ABIS_PASSWORD="${env.ABIS_PASSWORD}" \
+                            -e CI=1 \
+                            -e FORCE_COLOR=1 \
+                            ${PLAYWRIGHT_IMAGE} /bin/bash -c "rm -rf node_modules && npm install && npx playwright install chrome && npx playwright test -g '@sanity' --reporter=html || exit 1"
+                        """
+                    }
                 }
             }
         }
@@ -206,17 +206,6 @@ pipeline {
                                     <a href="${env.BUILD_URL}console" class="button">📋 View Console Logs</a>
                                     <p style="margin-top: 15px;"><em>The HTML report includes screenshots, videos, trace files, and detailed step-by-step execution logs.</em></p>
                                 </div>
-                                
-                                <div class="section">
-                                    <h2>ℹ️ Additional Information</h2>
-                                    <ul>
-                                        <li><strong>Browser:</strong> Chromium (Playwright)</li>
-                                        <li><strong>Container:</strong> Microsoft Playwright Docker Image v1.56.0</li>
-                                        <li><strong>Reporter:</strong> HTML with screenshots and videos</li>
-                                        <li><strong>Branch:</strong> externalized-helpers</li>
-                                    </ul>
-                                </div>
-                                
                                 <div class="footer">
                                     <p><strong>Note:</strong> This is an automated email from Jenkins CI/CD Pipeline.</p>
                                     <p>For any questions or issues, please contact the QA team or check the Jenkins build logs.</p>
@@ -233,8 +222,7 @@ pipeline {
                         to: EMAIL_NOTIFICATION,
                         body: emailBody,
                         mimeType: 'text/html',
-                        attachLog: false,
-                        attachmentsPattern: 'playwright-report/index.html'
+                        attachLog: false
                     )
                 }
             }
