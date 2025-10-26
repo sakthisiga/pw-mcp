@@ -59,6 +59,28 @@ pipeline {
                 ])
             }
         }
+
+        stage('Clean Docker Resources') {
+            steps {
+                script {
+                    echo 'Cleaning up Docker containers and images...'
+                    sh '''
+                        # Stop and remove all running containers
+                        docker ps -q | xargs -r docker stop || true
+                        docker ps -aq | xargs -r docker rm || true
+                        
+                        # Remove all images
+                        docker images -q | xargs -r docker rmi -f || true
+                        
+                        # Clean up dangling images and build cache
+                        docker system prune -af --volumes || true
+                        
+                        echo "Docker cleanup completed"
+                    '''
+                }
+            }
+        }
+
         stage('Install Dependencies & Run abis.spec.ts') {
             steps {
                 script {
@@ -66,7 +88,7 @@ pipeline {
                         docker run --rm -v "${WORKSPACE}:/app" -w /app --ipc=host --network=host\
                         -e ABIS_USERNAME="${env.ABIS_USERNAME}" \
                         -e ABIS_PASSWORD="${env.ABIS_PASSWORD}" \
-                        -e CI=1 \
+                        -e CI=0 \
                         ${PLAYWRIGHT_IMAGE} /bin/bash -c "rm -rf node_modules && npm install && npx playwright install chrome && npx playwright test tests/abis.spec.ts --reporter=html || exit 1"
                     """
                 }
@@ -84,6 +106,15 @@ pipeline {
                     reportName: 'Playwright Test Report',
                     reportTitles: 'Playwright Test Results'
                 ])
+            }
+        }
+
+        stage('Archive Test Artifacts') {
+            steps {
+                script {
+                    // Archive the execution details JSON file
+                    archiveArtifacts artifacts: 'abis_execution_details.json', allowEmptyArchive: true, fingerprint: true
+                }
             }
         }
 
