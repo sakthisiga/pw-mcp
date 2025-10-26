@@ -52,7 +52,7 @@ pipeline {
             steps {
                 checkout([
                     $class: 'GitSCM',
-                    branches: [[name: '*/jenkins-build-issue']],
+                    branches: [[name: '*/main']],
                     userRemoteConfigs: [[
                         url: 'git@github.com:sakthisiga/pw-mcp.git'
                     ]]
