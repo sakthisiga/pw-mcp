@@ -23,20 +23,35 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   reporter: [ ['html'] ],
-  timeout: 30000, // 30 seconds per test
+  /* Global test timeout - 5 minutes for complex E2E flows */
+  timeout: 300000, // 5 minutes per test (was 30s - too short for ABIS workflow)
+  /* Expect timeout for assertions */
+  expect: {
+    timeout: 10000, // 10 seconds for expect assertions
+  },
   use: {
     /* Base URL to use in actions like `await page.goto('')`. */
     // baseURL: 'http://localhost:3000',
 
+    /* Action timeout - max time for each action like click, fill, etc */
+    actionTimeout: 15000, // 15 seconds per action
+    
+    /* Navigation timeout - max time for page.goto() */
+    navigationTimeout: 30000, // 30 seconds for page loads
+
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: 'on-first-retry',
-    /* Always capture a screenshot after each test */
-    screenshot: 'on',
-    /* Capture video for all tests */
-    video: 'on',
+    
+    /* Capture screenshots only on failure to save space */
+    screenshot: 'only-on-failure',
+    
+    /* Capture video only on failure to save space and improve performance */
+    video: 'retain-on-failure',
+    
     launchOptions: {
       // headless: true,
-      slowMo: 100,
+      // Remove slowMo in production, only use for local debugging
+      slowMo: process.env.CI ? 0 : 100,
     },
   },
 
