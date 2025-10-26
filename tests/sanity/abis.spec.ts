@@ -9,10 +9,8 @@ import { InvoiceHelper } from '../../utils/sanity/invoiceHelper';
 import { readAbisExecutionDetails, writeAbisExecutionDetails } from '../../utils/sanity/jsonWriteHelper';
 import { CommonHelper } from '../../utils/commonHelper';
 import { test, expect } from '@playwright/test';
-import fs from 'fs';
 import dotenv from 'dotenv';
 
-// Removed require for fs as we are using ES module imports
 const faker = require('faker');
 dotenv.config();
 
@@ -41,23 +39,16 @@ test('ABIS Sanity @sanity', async ({ page }) => {
   // Go to /leads page
   const leadName = name;
   await page.goto(`${APP_BASE_URL}/leads`);
-  // Find the datatable search box inside the table header (try multiple selectors, exclude checkboxes)
-  let tableSearchInput = page.locator('table thead input[type="search"]');
-  if (!(await tableSearchInput.count())) {
-    tableSearchInput = page.locator('table thead input[placeholder*="search" i]');
+  
+  // Find the datatable search box (try multiple selectors)
+  let searchInput = page.locator('table thead input[type="search"]').first();
+  if (await searchInput.count() === 0) {
+    searchInput = page.locator('table input[type="search"]').first();
   }
-  if (!(await tableSearchInput.count())) {
-    tableSearchInput = page.locator('table thead input:not([type="checkbox"]):not([type="button"]):not([type="submit"])');
+  if (await searchInput.count() === 0) {
+    searchInput = page.locator('input[placeholder*="search" i]').first();
   }
-  if (!(await tableSearchInput.count())) {
-    tableSearchInput = page.locator('input[placeholder*="search" i]');
-  }
-  if (!(await tableSearchInput.count())) {
-    throw new Error('Could not find datatable search input');
-  }
-  // If multiple search inputs found, use the first one
-  const searchInput = tableSearchInput.first();
-  await expect(searchInput).toBeVisible();
+  await expect(searchInput).toBeVisible({ timeout: 10000 });
   await searchInput.fill(leadName);
   await page.waitForTimeout(2000); // Wait for search results to update
 
@@ -134,9 +125,7 @@ test('ABIS Sanity @sanity', async ({ page }) => {
     await prePaymentTab.click();
   CommonHelper.logger('STEP', 'Clicked Pre Payment tab');
 
-    // --- New Pre Payment Workflow ---
-    // Click "New Pre Payment" link (not button)
-    // Click "New Pre Payment" link (not button)
+  // Click "New Pre Payment" link
   const newPrePaymentLink = page.getByRole('link', { name: /New Pre Payment/i });
   await expect(newPrePaymentLink).toBeVisible({ timeout: 10000 });
   await newPrePaymentLink.click();
@@ -146,8 +135,7 @@ test('ABIS Sanity @sanity', async ({ page }) => {
   const newPrePaymentHeading = page.getByRole('heading', { name: /New Pre Payment/i });
   await expect(newPrePaymentHeading).toBeVisible({ timeout: 15000 });
 
-  // Wait for Service combobox to be visible after clicking New Pre Payment
-  // Robust Service selection: try multiple AJAX search terms and log diagnostics
+  // Select service from dropdown with AJAX search
   const serviceDropdownButton = page.locator('button[data-id="project_id"]');
   try {
     await serviceDropdownButton.waitFor({ state: 'visible', timeout: 15000 });
@@ -210,38 +198,29 @@ test('ABIS Sanity @sanity', async ({ page }) => {
   await paymentModeSelect.selectOption({ label: validPaymentMode.trim() });
   CommonHelper.logger('STEP', `Selected Payment Mode: ${validPaymentMode.trim()}`);
 
-  // Add "100" to the "Rate" field in the table (target input[name='rate'])
-  // Log all table inputs for diagnostics
-  const allTableInputs = await page.locator('table input').all();
-  for (const input of allTableInputs) {
-    const name = await input.getAttribute('name');
-    const placeholder = await input.getAttribute('placeholder');
-    const value = await input.inputValue();
+  // Enter rate value in the table
+  let rateInput = page.locator('table input[name="rate"]');
+  if (await rateInput.count() === 0) {
+    rateInput = page.locator('table input[placeholder*="Rate" i]');
   }
-  let rateInput2 = page.locator('table input[name="rate"]');
-  if (await rateInput2.count() === 0) {
-    // fallback: input with placeholder Rate
-    rateInput2 = page.locator('table input[placeholder*="Rate" i]');
+  if (await rateInput.count() === 0) {
+    rateInput = page.locator('table input').first();
   }
-  if (await rateInput2.count() === 0) {
-    // fallback: any input in table
-    rateInput2 = page.locator('table input').first();
-  }
-  await expect(rateInput2).toBeVisible({ timeout: 10000 });
-  await rateInput2.fill('100');
-  await expect(rateInput2).toHaveValue('100', { timeout: 5000 });
+  await expect(rateInput).toBeVisible({ timeout: 10000 });
+  await rateInput.fill('100');
+  await expect(rateInput).toHaveValue('100', { timeout: 5000 });
   CommonHelper.logger('STEP', 'Entered 100 in Rate field');
 
-  // Click the blue tick mark button in the table (use #btnAdditem)
-  const tickBtn2 = page.locator('#btnAdditem');
-  await expect(tickBtn2).toBeVisible({ timeout: 10000 });
-  await tickBtn2.click();
+  // Click the blue tick mark button in the table
+  const tickBtn = page.locator('#btnAdditem');
+  await expect(tickBtn).toBeVisible({ timeout: 10000 });
+  await tickBtn.click();
   CommonHelper.logger('STEP', 'Clicked blue tick mark button');
 
   // Click Save
-  const saveBtn2 = page.getByRole('button', { name: /Save/i });
-  await expect(saveBtn2).toBeVisible({ timeout: 10000 });
-  await saveBtn2.click();
+  const saveBtn = page.getByRole('button', { name: /Save/i });
+  await expect(saveBtn).toBeVisible({ timeout: 10000 });
+  await saveBtn.click();
   CommonHelper.logger('STEP', 'Clicked Save for Pre Payment');
   
   // Wait for navigation to complete after save
@@ -257,8 +236,7 @@ test('ABIS Sanity @sanity', async ({ page }) => {
   // Extract prepayment number from the page after navigation completes
   let prepaymentNumber = '';
   try {
-    const pageContentAfterSave = await page.content();
-    const prepaymentMatch = pageContentAfterSave.match(/PP-\d+/);
+    const prepaymentMatch = (await page.content()).match(/PP-\d+/);
     if (prepaymentMatch) {
       prepaymentNumber = prepaymentMatch[0];
       CommonHelper.logger('INFO', 'Captured Prepayment number:', prepaymentNumber);
@@ -266,7 +244,6 @@ test('ABIS Sanity @sanity', async ({ page }) => {
       // Try alternative: look in URL or page heading
       const urlMatch = page.url().match(/credit_notes\/(\d+)/);
       if (urlMatch) {
-        // Try to find PP number in the page heading or title
         const heading = await page.locator('h4, h3, h2').first().textContent().catch(() => '');
         const headingMatch = heading?.match(/PP-\d+/);
         if (headingMatch) {
@@ -371,22 +348,22 @@ test('ABIS Sanity @sanity', async ({ page }) => {
     CommonHelper.logger('ERROR', 'Error updating Prepayment number in abis_execution_details.json:', err);
   }
 
-// --- Workflow: Create Proforma and mark as accepted ---
-const detailsJson3 = readAbisExecutionDetails();
-const clientIdRaw = detailsJson3.company?.clientId || '';
-const proformaClientId = clientIdRaw.replace(/^#/, ''); // Remove leading '#' if present
-if (!proformaClientId) {
-  throw new Error('clientId not found in abis_execution_details.json');
-}
-if (!APP_BASE_URL) {
-  throw new Error('APP_BASE_URL is not defined');
-}
+  // Create Proforma and mark as accepted
+  const proformaDetailsJson = readAbisExecutionDetails();
+  const clientIdRaw = proformaDetailsJson.company?.clientId || '';
+  const proformaClientId = clientIdRaw.replace(/^#/, ''); // Remove leading '#' if present
+  if (!proformaClientId) {
+    throw new Error('clientId not found in abis_execution_details.json');
+  }
+  if (!APP_BASE_URL) {
+    throw new Error('APP_BASE_URL is not defined');
+  }
 
-const proformaHelper = new ProformaHelper(page);
-await proformaHelper.createAndAcceptProforma(proformaClientId, APP_BASE_URL);
+  const proformaHelper = new ProformaHelper(page);
+  await proformaHelper.createAndAcceptProforma(proformaClientId, APP_BASE_URL);
 
-// --- Workflow: Convert to Invoice and complete payment ---
-const invoiceHelper = new InvoiceHelper(page);
-await invoiceHelper.processInvoiceWorkflow();
+  // Convert to Invoice and complete payment
+  const invoiceHelper = new InvoiceHelper(page);
+  await invoiceHelper.processInvoiceWorkflow();
 });
 

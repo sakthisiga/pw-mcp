@@ -241,12 +241,11 @@ export class ProformaHelper {
       const dateInput = this.page.locator('input[name="date"], input#date');
       if (await dateInput.count() && await dateInput.isVisible()) {
         proformaDate = await dateInput.inputValue();
-      } else {
-        const dateText = await this.page.locator('span:has-text("Date"), div:has-text("Date")').first().innerText();
-        if (dateText) proformaDate = dateText.replace(/[^\d-\/]/g, '');
       }
+      
       if (!proformaDate) {
-        const dateMatch = pageContent.match(/Date\s*[:=]\s*([\d\/-]+)/i);
+        // Try to find date in page content using regex
+        const dateMatch = pageContent.match(/Date[:\s]*(\d{2}-\d{2}-\d{4})/i);
         if (dateMatch) proformaDate = dateMatch[1];
       }
     } catch (err) {
