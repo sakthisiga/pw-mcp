@@ -106,9 +106,8 @@ export class ProformaHelper {
       await addServiceBtn.click();
       CommonHelper.logger('STEP', 'Clicked Add in services modal');
     } catch (err) {
-      // Diagnostics
       const allLinks = await servicesModal.locator('a').allTextContents();
-      CommonHelper.logger('ERROR', `Add link not found/visible in Services modal. All visible links: ${JSON.stringify(allLinks)}`);
+      CommonHelper.logger('ERROR', `Add link not found in Services modal. Available links: ${JSON.stringify(allLinks)}`);
       throw err;
     }
   }
@@ -138,10 +137,8 @@ export class ProformaHelper {
       await tickBtn.click();
       CommonHelper.logger('STEP', 'Clicked blue tick mark button in Proforma page');
     } catch (err) {
-      // Diagnostics
       const allButtons = await this.page.locator('button').allTextContents();
-      const allLinks = await this.page.locator('a').allTextContents();
-      CommonHelper.logger('ERROR', `Tick mark button not found. Buttons: ${JSON.stringify(allButtons)}, Links: ${JSON.stringify(allLinks)}`);
+      CommonHelper.logger('ERROR', `Tick mark button not found. Available buttons: ${JSON.stringify(allButtons)}`);
       throw err;
     }
   }

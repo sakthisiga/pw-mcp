@@ -314,9 +314,8 @@ export class InvoiceHelper {
     }
 
     if (!foundInput) {
-      const modalHtml = await applyCreditsModal.innerHTML();
-      require('fs').writeFileSync('apply-credits-modal-debug.html', modalHtml);
-      CommonHelper.logger('ERROR', 'No input found in Apply Credits modal');
+      CommonHelper.logger('ERROR', 'No input found in Apply Credits modal after retries');
+      await CommonHelper.safeScreenshot(this.page, { path: 'apply-credits-modal-no-input.png', fullPage: true });
       throw new Error('No input found in Apply Credits modal');
     }
 
