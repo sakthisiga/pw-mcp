@@ -1,6 +1,6 @@
 import { Page, expect } from '@playwright/test';
 import { CommonHelper } from '../commonHelper';
-import { readAbisExecutionDetails, writeAbisExecutionDetails } from './jsonWriteHelper';
+import { readAbisExecutionDetails, writeAbisExecutionDetails } from '../jsonWriteHelper';
 
 /**
  * InvoiceHelper - Handles complete Invoice workflow from conversion to payment approval
