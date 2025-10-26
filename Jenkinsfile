@@ -89,7 +89,7 @@ pipeline {
                         -e ABIS_USERNAME="${env.ABIS_USERNAME}" \
                         -e ABIS_PASSWORD="${env.ABIS_PASSWORD}" \
                         -e CI=1 \
-                        ${PLAYWRIGHT_IMAGE} /bin/bash -c "rm -rf node_modules && npm install && npx playwright install chrome && npx playwright test tests/sanity/abis.spec.ts --reporter=html || exit 1"
+                        ${PLAYWRIGHT_IMAGE} /bin/bash -c "rm -rf node_modules && npm install && npx playwright install chrome && npx playwright test -g "@sanity" --reporter=html || exit 1"
                     """
                 }
             }
