@@ -32,8 +32,8 @@ export default defineConfig({
     trace: 'on-first-retry',
     /* Always capture a screenshot after each test */
     screenshot: 'on',
-    /* Also capture video for failed tests (optional) */
-    video: 'retain-on-failure',
+    /* Capture video for all tests */
+    video: 'on',
     launchOptions: {
       // headless: true,
       slowMo: 100,
