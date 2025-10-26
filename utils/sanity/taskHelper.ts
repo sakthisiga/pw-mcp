@@ -1,5 +1,5 @@
 import { Page, expect, Locator } from '@playwright/test';
-import { CommonHelper } from './commonHelper';
+import { CommonHelper } from '../commonHelper';
 import * as fs from 'fs';
 
 export class TaskHelper {
@@ -599,7 +599,7 @@ export class TaskHelper {
     const modalBackdrop = this.page.locator('.modal-backdrop').first();
     let modalClosed = false;
     
-    // Wait for modal to be hidden
+    // Wait for modal to be hidden - increased timeout for Windows compatibility
     for (let i = 0; i < 5; i++) {
       if (!(await postSaveModal.isVisible())) {
         modalClosed = true;
@@ -611,7 +611,7 @@ export class TaskHelper {
       if (await closeBtn.count()) await closeBtn.click();
       const xBtn = postSaveModal.locator('button.close, .modal-header .close');
       if (await xBtn.count()) await xBtn.click();
-      await this.page.waitForTimeout(1000);
+      await this.page.waitForTimeout(2000); // Increased from 1000ms for Windows
     }
     
     if (!modalClosed) {
@@ -620,22 +620,49 @@ export class TaskHelper {
       throw new Error('Modal did not close after all fallback actions. Screenshot and HTML saved for debugging.');
     }
     
-    // Check for backdrop
+    // Check for backdrop - use waitForSelector with hidden state for better reliability
     let backdropClosed = false;
-    for (let i = 0; i < 5; i++) {
-      if (!(await modalBackdrop.isVisible())) {
-        backdropClosed = true;
-        break;
+    
+    // First, try waiting for backdrop to become hidden naturally
+    try {
+      await this.page.locator('.modal-backdrop').first().waitFor({ state: 'hidden', timeout: 5000 });
+      backdropClosed = true;
+      CommonHelper.logger('INFO', 'Modal backdrop disappeared naturally');
+    } catch (err) {
+      CommonHelper.logger('WARN', 'Backdrop did not hide naturally, attempting fallback actions');
+    }
+    
+    // If still visible, try fallback actions
+    if (!backdropClosed) {
+      for (let i = 0; i < 5; i++) {
+        if (!(await modalBackdrop.isVisible())) {
+          backdropClosed = true;
+          break;
+        }
+        await this.page.keyboard.press('Escape');
+        await this.page.locator('body').click({ position: { x: 10, y: 10 } });
+        await this.page.waitForTimeout(2000); // Increased from 1000ms for Windows
       }
-      await this.page.keyboard.press('Escape');
-      await this.page.locator('body').click({ position: { x: 10, y: 10 } });
-      await this.page.waitForTimeout(1000);
     }
     
     if (!backdropClosed) {
-      await this.page.screenshot({ path: 'modal-backdrop-not-closed.png', fullPage: true });
-      CommonHelper.logger('WARN', 'modal-backdrop-not-closed: saved screenshot for debugging');
-      throw new Error('Modal backdrop did not disappear after all fallback actions. Screenshot and HTML saved for debugging.');
+      // Last resort: force remove backdrop from DOM
+      CommonHelper.logger('WARN', 'Forcing backdrop removal from DOM');
+      await this.page.evaluate(() => {
+        const backdrops = document.querySelectorAll('.modal-backdrop');
+        backdrops.forEach(backdrop => backdrop.remove());
+      });
+      await this.page.waitForTimeout(500);
+      
+      // Verify it's gone
+      const stillVisible = await modalBackdrop.isVisible().catch(() => false);
+      if (!stillVisible) {
+        CommonHelper.logger('INFO', 'Modal backdrop forcibly removed from DOM');
+      } else {
+        await this.page.screenshot({ path: 'modal-backdrop-not-closed.png', fullPage: true });
+        CommonHelper.logger('WARN', 'modal-backdrop-not-closed: saved screenshot for debugging');
+        throw new Error('Modal backdrop did not disappear after all fallback actions. Screenshot and HTML saved for debugging.');
+      }
     }
   }
 

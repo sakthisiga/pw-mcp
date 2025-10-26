@@ -1,13 +1,13 @@
-import { login } from '../utils/loginHelper';
-import { LeadHelper, LeadDetails } from '../utils/leadHelper';
-import { ProposalHelper, ProposalDetails } from '../utils/proposalHelper';
-import { CustomerHelper } from '../utils/customerHelper';
-import { ServiceHelper } from '../utils/serviceHelper';
-import { TaskHelper } from '../utils/taskHelper';
-import { ProformaHelper } from '../utils/proformaHelper';
-import { InvoiceHelper } from '../utils/invoiceHelper';
-import { readAbisExecutionDetails, writeAbisExecutionDetails } from '../utils/jsonWriteHelper';
-import { CommonHelper } from '../utils/commonHelper';
+import { login } from '../../utils/loginHelper';
+import { LeadHelper, LeadDetails } from '../../utils/sanity/leadHelper';
+import { ProposalHelper, ProposalDetails } from '../../utils/sanity/proposalHelper';
+import { CustomerHelper } from '../../utils/sanity/customerHelper';
+import { ServiceHelper } from '../../utils/sanity/serviceHelper';
+import { TaskHelper } from '../../utils/sanity/taskHelper';
+import { ProformaHelper } from '../../utils/sanity/proformaHelper';
+import { InvoiceHelper } from '../../utils/sanity/invoiceHelper';
+import { readAbisExecutionDetails, writeAbisExecutionDetails } from '../../utils/sanity/jsonWriteHelper';
+import { CommonHelper } from '../../utils/commonHelper';
 import { test, expect } from '@playwright/test';
 import fs from 'fs';
 import dotenv from 'dotenv';
@@ -152,31 +152,46 @@ test('ABIS Sanity @sanity', async ({ page }) => {
   try {
     await serviceDropdownButton.waitFor({ state: 'visible', timeout: 15000 });
     await serviceDropdownButton.click();
+    CommonHelper.logger('STEP', 'Clicked service dropdown button');
+    
     const serviceSearchInput = page.locator('#project_ajax_search_wrapper .bs-searchbox input');
     await serviceSearchInput.waitFor({ state: 'visible', timeout: 10000 });
-      // Use only a space ' ' to trigger service list
-      await serviceSearchInput.type(' ', { delay: 100 });
-      await page.waitForTimeout(500); // Give AJAX time to respond
-      try {
-        await page.waitForFunction(() => {
-          const options = Array.from(document.querySelectorAll('#project_ajax_search_wrapper .inner.open ul li a span.text'));
-          return options.some(opt => opt.textContent && opt.textContent.trim().length > 0);
-        }, { timeout: 7000 });
-        // Log available options for diagnostics
-        const options = await page.$$eval('#project_ajax_search_wrapper .inner.open ul li a span.text', nodes => nodes.map(n => n.textContent));
-        // console.log(`Service options found for space search:`, options);
-        // Click the first non-empty option
-        const firstOption = page.locator('#project_ajax_search_wrapper .inner.open ul li a span.text').filter({ hasText: /.+/ }).first();
-        await firstOption.click();
-      } catch {
-        // Log dropdown HTML for diagnostics
-  const dropdownHtml = await page.locator('#project_ajax_search_wrapper .dropdown-menu.open').innerHTML();
-  CommonHelper.logger('WARN', 'service-dropdown-debug-space: saved dropdown HTML in memory for review');
-        throw new Error('No service options found after space AJAX search. See diagnostics.');
-      }
+    
+    // Wait for dropdown to be ready before typing
+    await page.waitForTimeout(1000);
+    
+    // Use only a space ' ' to trigger service list
+    await serviceSearchInput.type(' ', { delay: 100 });
+    CommonHelper.logger('STEP', 'Typed space in service search to trigger AJAX');
+    
+    // Wait longer for AJAX response in Docker environment
+    await page.waitForTimeout(2000); // Increased from 500ms to 2000ms for Docker
+    
+    // Wait for options to appear with better error handling
+    try {
+      await page.waitForFunction(() => {
+        const options = Array.from(document.querySelectorAll('#project_ajax_search_wrapper .inner.open ul li a span.text'));
+        return options.some(opt => opt.textContent && opt.textContent.trim().length > 0);
+      }, { timeout: 10000 }); // Increased from 7s to 10s
+      
+      // Log available options for diagnostics
+      const options = await page.$$eval('#project_ajax_search_wrapper .inner.open ul li a span.text', nodes => nodes.map(n => n.textContent));
+      CommonHelper.logger('INFO', `Service options found: ${options.length} items`);
+      
+      // Click the first non-empty option
+      const firstOption = page.locator('#project_ajax_search_wrapper .inner.open ul li a span.text').filter({ hasText: /.+/ }).first();
+      await firstOption.click();
+      CommonHelper.logger('STEP', 'Selected first service option');
+    } catch (optionError) {
+      // Enhanced diagnostics on failure
+      const dropdownHtml = await page.locator('#project_ajax_search_wrapper').innerHTML().catch(() => 'Could not capture HTML');
+      CommonHelper.logger('ERROR', 'service-dropdown-debug: ' + dropdownHtml.substring(0, 500));
+      await CommonHelper.safeScreenshot(page, { path: 'service-dropdown-no-options.png', fullPage: true });
+      throw new Error('No service options found after space AJAX search. AJAX may have timed out or returned no results.');
+    }
   } catch (e) {
-  await page.screenshot({ path: 'service-dropdown-arrow-fail.png' });
-  CommonHelper.logger('WARN', 'service-dropdown-arrow-fail: saved screenshot for debugging');
+    await CommonHelper.safeScreenshot(page, { path: 'service-dropdown-arrow-fail.png', fullPage: true });
+    CommonHelper.logger('ERROR', 'service-dropdown-arrow-fail: ' + (e as Error).message);
     throw new Error('Service dropdown down arrow or options not visible. Screenshot and HTML saved for debugging.');
   }
 
@@ -188,7 +203,7 @@ test('ABIS Sanity @sanity', async ({ page }) => {
   // Select the first valid option (not empty)
   const validPaymentMode = paymentModeOptions.find(opt => opt && opt.trim().length > 0);
   if (!validPaymentMode) {
-  await page.screenshot({ path: 'payment-mode-select-not-found.png', fullPage: true });
+  await CommonHelper.safeScreenshot(page, { path: 'payment-mode-select-not-found.png', fullPage: true });
   CommonHelper.logger('WARN', 'payment-mode-select-not-found: saved screenshot for debugging');
     throw new Error('No valid Payment Mode options found. Screenshot and HTML saved for debugging.');
   }
@@ -315,7 +330,7 @@ test('ABIS Sanity @sanity', async ({ page }) => {
   }
   
   if (!moreDropdownClicked) {
-    await page.screenshot({ path: 'more-dropdown-not-found.png', fullPage: true });
+    await CommonHelper.safeScreenshot(page, { path: 'more-dropdown-not-found.png', fullPage: true });
     CommonHelper.logger('WARN', 'Could not find or click More dropdown after Pre Payment save.');
     throw new Error('More dropdown not found or not clickable after retries.');
   }
