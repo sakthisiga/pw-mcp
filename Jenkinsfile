@@ -88,8 +88,8 @@ pipeline {
                         docker run --rm -v "${WORKSPACE}:/app" -w /app --ipc=host --network=host\
                         -e ABIS_USERNAME="${env.ABIS_USERNAME}" \
                         -e ABIS_PASSWORD="${env.ABIS_PASSWORD}" \
-                        -e CI=0 \
-                        ${PLAYWRIGHT_IMAGE} /bin/bash -c "rm -rf node_modules && npm install && npx playwright install chrome && npx playwright test tests/abis.spec.ts --reporter=html || exit 1"
+                        -e CI=1 \
+                        ${PLAYWRIGHT_IMAGE} /bin/bash -c "rm -rf node_modules && npm install && npx playwright install chrome && npx playwright test tests/sanity/abis.spec.ts --reporter=html || exit 1"
                     """
                 }
             }

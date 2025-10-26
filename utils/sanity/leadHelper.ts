@@ -1,5 +1,5 @@
 import { Page, expect } from '@playwright/test';
-import { CommonHelper } from './commonHelper';
+import { CommonHelper } from '../commonHelper';
 
 // Keep faker usage consistent with the spec
 // eslint-disable-next-line @typescript-eslint/no-var-requires

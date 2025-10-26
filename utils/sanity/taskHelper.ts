@@ -1,5 +1,5 @@
 import { Page, expect, Locator } from '@playwright/test';
-import { CommonHelper } from './commonHelper';
+import { CommonHelper } from '../commonHelper';
 import * as fs from 'fs';
 
 export class TaskHelper {

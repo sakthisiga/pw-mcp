@@ -1,5 +1,5 @@
 import { Page, expect } from '@playwright/test';
-import { CommonHelper } from './commonHelper';
+import { CommonHelper } from '../commonHelper';
 
 export interface ProposalDetails {
   proposalNumber: string;
