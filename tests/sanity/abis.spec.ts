@@ -29,7 +29,7 @@ test('ABIS Sanity @sanity', async ({ page }) => {
   // Create lead via helper
   const leadHelper = new LeadHelper(page, APP_BASE_URL!);
   const lead: LeadDetails = await leadHelper.createLead();
-  const { name, email, phone, company, address, city, state: selectedState, zip } = lead;
+  const { leadId, name, email, phone, company, address, city, state: selectedState, zip } = lead;
 
   // Create proposal via helper
   const proposalHelper = new ProposalHelper(page);
@@ -71,6 +71,7 @@ test('ABIS Sanity @sanity', async ({ page }) => {
   // Update abis_execution_details.json in nested format (now includes customerAdmin)
   let detailsJson = {
     lead: {
+      leadId,
       name,
       email,
       phone,

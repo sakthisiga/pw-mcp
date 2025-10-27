@@ -6,6 +6,7 @@ import { CommonHelper } from '../commonHelper';
 const faker = require('faker');
 
 export interface LeadDetails {
+  leadId: string;
   name: string;
   email: string;
   phone: string;
@@ -112,7 +113,56 @@ export class LeadHelper {
     await expect(dialog).toBeVisible({ timeout: 10000 });
     await page.waitForTimeout(3000);
 
+    // Extract lead ID from the modal
+    let leadId = '';
+    try {
+      // Method 1: Look for lead ID in the URL of "View Lead" link or similar
+      const viewLeadLink = dialog.locator('a[href*="/leads/"], a[href*="leadid="]').first();
+      if (await viewLeadLink.count() > 0) {
+        const href = await viewLeadLink.getAttribute('href');
+        if (href) {
+          // Extract lead ID from URL patterns like /leads/123 or ?leadid=123
+          const urlMatch = href.match(/\/leads\/(\d+)|leadid=(\d+)/);
+          if (urlMatch) {
+            leadId = urlMatch[1] || urlMatch[2];
+            CommonHelper.logger('INFO', 'Captured Lead ID from link:', leadId);
+          }
+        }
+      }
+
+      // Method 2: Look for lead ID in modal content (e.g., "Lead #123" or "ID: 123")
+      if (!leadId) {
+        const modalContent = await dialog.textContent();
+        const contentMatch = modalContent?.match(/#(\d+)|Lead\s+ID[:\s]*(\d+)|ID[:\s]*(\d+)/i);
+        if (contentMatch) {
+          leadId = contentMatch[1] || contentMatch[2] || contentMatch[3];
+          CommonHelper.logger('INFO', 'Captured Lead ID from modal content:', leadId);
+        }
+      }
+
+      // Method 3: Look for data-id or similar attributes
+      if (!leadId) {
+        const leadIdAttr = await dialog.getAttribute('data-leadid') || 
+                          await dialog.getAttribute('data-id') ||
+                          await dialog.locator('[data-leadid], [data-id]').first().getAttribute('data-leadid') ||
+                          await dialog.locator('[data-leadid], [data-id]').first().getAttribute('data-id');
+        if (leadIdAttr) {
+          leadId = leadIdAttr;
+          CommonHelper.logger('INFO', 'Captured Lead ID from data attribute:', leadId);
+        }
+      }
+
+      if (!leadId) {
+        CommonHelper.logger('WARN', 'Could not extract Lead ID from modal');
+        leadId = 'N/A';
+      }
+    } catch (err) {
+      CommonHelper.logger('ERROR', 'Error extracting Lead ID:', err);
+      leadId = 'N/A';
+    }
+
     return {
+      leadId,
       name,
       email,
       phone,
