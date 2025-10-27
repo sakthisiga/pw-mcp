@@ -94,13 +94,14 @@ test('ABIS Sanity @sanity', async ({ page }) => {
 
   // --- Add service for customer after admin assignment ---
   const serviceHelper = new ServiceHelper(page);
-  const { serviceNumber, deadline } = await serviceHelper.createService(proposalNumberHtml || '');
+  const { serviceNumber, serviceName, deadline } = await serviceHelper.createService(proposalNumberHtml || '');
 
   // Update abis_execution_details.json
   try {
     const detailsJson = readAbisExecutionDetails();
     detailsJson.service = {
       serviceNumber,
+      serviceName,
       deadline
     };
     writeAbisExecutionDetails(detailsJson);
