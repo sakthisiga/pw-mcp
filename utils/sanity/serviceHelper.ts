@@ -3,10 +3,13 @@ import { CommonHelper } from '../commonHelper';
 
 interface ServiceDetails {
   serviceNumber: string;
+  serviceName: string;
   deadline: string;
 }
 
 export class ServiceHelper {
+  private selectedServiceName = '';
+  
   constructor(private page: Page) {}
 
   /**
@@ -205,6 +208,7 @@ export class ServiceHelper {
     
     const randomProposalService = validProposalServiceOptions[Math.floor(Math.random() * validProposalServiceOptions.length)];
     await proposalServicesDropdown.selectOption({ label: randomProposalService });
+    this.selectedServiceName = randomProposalService.trim();
     CommonHelper.logger('INFO', 'Proposal Service selected:', randomProposalService);
     
     // Wait for data to populate on other fields
@@ -260,7 +264,7 @@ export class ServiceHelper {
       }
     }
     
-    CommonHelper.logger('INFO', 'Service created - Number:', serviceNumber, 'Deadline:', deadline);
-    return { serviceNumber, deadline };
+    CommonHelper.logger('INFO', 'Service created - Number:', serviceNumber, 'Name:', this.selectedServiceName, 'Deadline:', deadline);
+    return { serviceNumber, serviceName: this.selectedServiceName, deadline };
   }
 }

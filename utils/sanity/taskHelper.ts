@@ -1,5 +1,6 @@
 import { Page, expect, Locator } from '@playwright/test';
 import { CommonHelper } from '../commonHelper';
+import { readAbisExecutionDetails, writeAbisExecutionDetails } from '../jsonWriteHelper';
 import * as fs from 'fs';
 
 export class TaskHelper {
@@ -18,6 +19,7 @@ export class TaskHelper {
     await this.closeModal();
     await this.navigateToTasksTab();
     await this.verifyTaskCreated();
+    await this.captureTaskDetails();
   }
 
   private async clickNewTaskButton(): Promise<void> {
@@ -919,4 +921,127 @@ export class TaskHelper {
     await this.page.locator('body').click({ position: { x: 10, y: 10 } });
     return false;
   }
+
+  /**
+   * Capture task ID and name from the tasks table and save to JSON file
+   */
+  private async captureTaskDetails(): Promise<void> {
+    CommonHelper.logger('STEP', 'Capturing task details');
+    
+    try {
+      // Wait a bit for the task to fully render
+      await this.page.waitForTimeout(2000);
+      
+      // Find the "Payment Collection" task row in the tasks table
+      const taskRow = this.page.locator('tr:has-text("Payment Collection")').first();
+      await taskRow.waitFor({ state: 'visible', timeout: 5000 });
+      
+      // Extract task ID - try multiple methods
+      let taskId = '';
+      
+      // Method 1: Look for a link with href containing task ID (most reliable)
+      try {
+        const taskLink = taskRow.locator('a[href*="taskid="]').first();
+        if (await taskLink.count() > 0) {
+          const taskLinkHref = await taskLink.getAttribute('href');
+          if (taskLinkHref && taskLinkHref.includes('taskid=')) {
+            const match = taskLinkHref.match(/taskid=(\d+)/);
+            if (match) {
+              taskId = match[1];
+              CommonHelper.logger('INFO', `Task ID found from link href: ${taskId}`);
+            }
+          }
+        }
+      } catch (e) {
+        CommonHelper.logger('WARN', 'Method 1 (href) failed:', e);
+      }
+      
+      // Method 2: Check if first column contains just a number (ID column)
+      if (!taskId) {
+        try {
+          const cells = taskRow.locator('td');
+          const cellCount = await cells.count();
+          
+          // Try first few cells to find the ID
+          for (let i = 0; i < Math.min(3, cellCount); i++) {
+            const cellText = await cells.nth(i).innerText();
+            const cleanText = cellText.trim();
+            
+            // Check if it's just a number (likely the ID)
+            if (/^\d+$/.test(cleanText)) {
+              taskId = cleanText;
+              CommonHelper.logger('INFO', `Task ID found from cell ${i}: ${taskId}`);
+              break;
+            }
+          }
+        } catch (e) {
+          CommonHelper.logger('WARN', 'Method 2 (cell text) failed:', e);
+        }
+      }
+      
+      // Method 3: Look for task ID in the page URL or task panel
+      if (!taskId) {
+        try {
+          const pageContent = await this.page.content();
+          const taskIdMatch = pageContent.match(/taskid["\s=:]+(\d+)/i);
+          if (taskIdMatch) {
+            taskId = taskIdMatch[1];
+            CommonHelper.logger('INFO', `Task ID found from page content: ${taskId}`);
+          }
+        } catch (e) {
+          CommonHelper.logger('WARN', 'Method 3 (page content) failed:', e);
+        }
+      }
+      
+      if (!taskId) {
+        CommonHelper.logger('WARN', 'Task ID not found after all methods, using N/A');
+        taskId = 'N/A';
+      }
+      
+      // Extract task name - get only the link text, not the button text
+      let taskName = 'Payment Collection'; // Default
+      try {
+        // Find the cell containing "Payment Collection" and get just the link text
+        const taskNameLink = taskRow.locator('a:has-text("Payment Collection")').first();
+        if (await taskNameLink.count() > 0) {
+          taskName = await taskNameLink.innerText();
+          taskName = taskName.trim();
+          CommonHelper.logger('INFO', `Task Name from link: ${taskName}`);
+        } else {
+          // Fallback: try to extract from cell but clean it
+          const taskNameCell = taskRow.locator('td').filter({ hasText: 'Payment Collection' }).first();
+          const fullText = await taskNameCell.innerText();
+          // Remove button text like "Start Timer | Edit | Delete"
+          const cleanedName = fullText.split('\n')[0].trim();
+          if (cleanedName) {
+            taskName = cleanedName;
+            CommonHelper.logger('INFO', `Task Name from cell (cleaned): ${taskName}`);
+          }
+        }
+      } catch (e) {
+        CommonHelper.logger('WARN', 'Failed to extract task name, using default:', e);
+      }
+      
+      // Read existing JSON data
+      const executionDetails = readAbisExecutionDetails();
+      
+      if (executionDetails && executionDetails.service) {
+        // Add task details under service.task section
+        executionDetails.service.task = {
+          taskId: taskId,
+          taskName: taskName
+        };
+        
+        // Write back to JSON file
+        writeAbisExecutionDetails(executionDetails);
+        CommonHelper.logger('STEP', `Task details saved to JSON: ID=${taskId}, Name=${taskName}`);
+      } else {
+        CommonHelper.logger('WARN', 'Could not read execution details or service section not found');
+      }
+    } catch (error) {
+      CommonHelper.logger('WARN', `Failed to capture task details: ${error}`);
+      // Don't throw error - task details capture is not critical to test success
+    }
+  }
 }
+

@@ -142,6 +142,72 @@ pipeline {
                     // Get build URL for HTML report
                     def reportUrl = "${env.BUILD_URL}Playwright_20Test_20Report/"
                     
+                    // Read and parse ABIS execution details JSON
+                    def executionDetails = [:]
+                    def workflowDetailsHtml = ""
+                    try {
+                        def jsonFile = readFile('abis_execution_details.json')
+                        executionDetails = readJSON text: jsonFile
+                        
+                        // Determine status for each workflow step
+                        def leadStatus = executionDetails.lead?.name ? '✅ PASSED' : '❌ FAILED'
+                        def proposalStatus = executionDetails.proposal?.proposalNumber ? '✅ PASSED' : '❌ FAILED'
+                        def customerStatus = executionDetails.company?.clientId ? '✅ PASSED' : '❌ FAILED'
+                        def serviceStatus = executionDetails.service?.serviceNumber ? '✅ PASSED' : '❌ FAILED'
+                        def prepaymentStatus = executionDetails.service?.prepaymentNumber ? '✅ PASSED' : '❌ FAILED'
+                        def proformaStatus = executionDetails.proforma?.proformaNumber ? '✅ PASSED' : '❌ FAILED'
+                        def invoiceStatus = executionDetails.invoice?.invoiceNumber ? '✅ PASSED' : '❌ FAILED'
+                        def paymentStatus = executionDetails.payment?.paymentId ? '✅ PASSED' : '❌ FAILED'
+                        
+                        // Build workflow status HTML section
+                        workflowDetailsHtml = """
+                            <div class="section">
+                                <h2>� ABIS Workflow Status</h2>
+                                <table class="info-table">
+                                    <tr>
+                                        <td>Lead Creation</td>
+                                        <td>${leadStatus}</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Proposal Creation</td>
+                                        <td>${proposalStatus}</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Customer Conversion</td>
+                                        <td>${customerStatus}</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Service Creation</td>
+                                        <td>${serviceStatus}</td>
+                                    </tr>
+                                    <tr>
+                                        <td>PrePayment Creation</td>
+                                        <td>${prepaymentStatus}</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Proforma Generation</td>
+                                        <td>${proformaStatus}</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Invoice Creation</td>
+                                        <td>${invoiceStatus}</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Payment Recording</td>
+                                        <td>${paymentStatus}</td>
+                                    </tr>
+                                </table>
+                            </div>
+                        """
+                    } catch (Exception e) {
+                        workflowDetailsHtml = """
+                            <div class="section">
+                                <h2>🔄 ABIS Workflow Status</h2>
+                                <p style="color: #dc3545;">⚠️ Unable to load workflow status: ${e.message}</p>
+                            </div>
+                        """
+                    }
+                    
                     // Build comprehensive email body
                     def emailBody = """
                         <html>
@@ -154,13 +220,14 @@ pipeline {
                                 .info-table td { padding: 10px; border: 1px solid #ddd; }
                                 .info-table td:first-child { background-color: #f8f9fa; font-weight: bold; width: 200px; }
                                 .section { margin: 20px 0; padding: 15px; background-color: #f8f9fa; border-left: 4px solid ${statusColor}; }
+                                .section h3 { color: #007bff; margin-top: 25px; margin-bottom: 10px; }
                                 .button { display: inline-block; padding: 12px 24px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px; margin: 10px 5px; }
                                 .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; color: #666; font-size: 12px; }
                             </style>
                         </head>
                         <body>
                             <div class="header">
-                                <h1>${statusIcon} ABIS ${params.ENVIRONMENT} Sanity Test Results</h1>
+                                <h1>ABIS ${params.ENVIRONMENT} Sanity Test Results</h1>
                                 <p>Execution Date: ${currentDate} at ${currentTime}</p>
                             </div>
                             
@@ -198,6 +265,8 @@ pipeline {
                                         </tr>
                                     </table>
                                 </div>
+                                
+                                ${workflowDetailsHtml}
                                 
                                 <div class="section">
                                     <h2>📁 Detailed Reports & Logs</h2>
