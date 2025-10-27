@@ -267,7 +267,7 @@ test('ABIS Sanity @sanity', async ({ page }) => {
 
   // Find and click the prepayment we just created
   if (prepaymentNumber) {
-    const prepaymentLink = page.locator(`a:has-text("${prepaymentNumber}")`).first();
+    const prepaymentLink = page.locator(`a:has-text("${prepaymentNumbe}")`).first();
     await expect(prepaymentLink).toBeVisible({ timeout: 10000 });
     await prepaymentLink.click();
     await page.waitForLoadState('networkidle');
