@@ -5,6 +5,9 @@ import { CommonHelper } from '../commonHelper';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const faker = require('faker');
 
+// Set faker locale to India for Indian names and addresses
+faker.locale = 'en_IND';
+
 export interface LeadDetails {
   leadId: string;
   name: string;

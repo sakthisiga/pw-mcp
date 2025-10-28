@@ -12,6 +12,9 @@ import { test, expect } from '@playwright/test';
 import dotenv from 'dotenv';
 
 const faker = require('faker');
+// Set faker locale to India for Indian names and addresses
+faker.locale = 'en_IND';
+
 dotenv.config();
 
 const APP_BASE_URL = process.env.APP_BASE_URL;
@@ -21,140 +24,112 @@ const E2E_PASS = process.env.E2E_PASS;
 test('ABIS Sanity @sanity', async ({ page }) => {
   test.setTimeout(300000); // 5 minutes
   CommonHelper.logger('INFO', 'Starting ABIS Sanity Test');
-  CommonHelper.logger('INFO', 'Using APP_BASE_URL:', APP_BASE_URL);
-  CommonHelper.logger('INFO', 'Using E2E_USER:', E2E_USER);
-  // Login
-  await login(page, APP_BASE_URL!, E2E_USER!, E2E_PASS!);
-
-  // Create lead via helper
-  const leadHelper = new LeadHelper(page, APP_BASE_URL!);
-  const lead: LeadDetails = await leadHelper.createLead();
-  const { leadId, name, email, phone, company, address, city, state: selectedState, zip } = lead;
-
-  // Save lead details to JSON immediately
-  try {
-    const detailsJson = {
-      lead: {
-        leadId,
-        name,
-        email,
-        phone,
-        address,
-        city,
-        state: selectedState,
-        zip
-      }
-    };
-    writeAbisExecutionDetails(detailsJson);
-  } catch (err) {
-    CommonHelper.logger('ERROR', 'Error saving lead details to JSON:', err);
-  }
-
-  // Create proposal via helper
-  const proposalHelper = new ProposalHelper(page);
-  const proposal: ProposalDetails = await proposalHelper.createAndProcessProposal('#lead-modal');
-  const { proposalNumber: proposalNumberHtml, services: selectedServices } = proposal;
-
-  // Save proposal details to JSON immediately
-  try {
-    const detailsJson = readAbisExecutionDetails();
-    detailsJson.proposal = {
-      proposalNumber: proposalNumberHtml || '',
-      services: selectedServices
-    };
-    writeAbisExecutionDetails(detailsJson);
-  } catch (err) {
-    CommonHelper.logger('ERROR', 'Error saving proposal details to JSON:', err);
-  }
-
-  // Go to /leads page
-  const leadName = name;
-  await page.goto(`${APP_BASE_URL}/leads`);
+  CommonHelper.logger('INFO', `Using APP URL: ${APP_BASE_URL}`);
+  CommonHelper.logger('INFO', `Using USERNAME: ${E2E_USER}`);
   
-  // Find the datatable search box (try multiple selectors)
-  let searchInput = page.locator('table thead input[type="search"]').first();
-  if (await searchInput.count() === 0) {
-    searchInput = page.locator('table input[type="search"]').first();
-  }
-  if (await searchInput.count() === 0) {
-    searchInput = page.locator('input[placeholder*="search" i]').first();
-  }
-  await expect(searchInput).toBeVisible({ timeout: 10000 });
-  await searchInput.fill(leadName);
-  await page.waitForTimeout(2000); // Wait for search results to update
+  let leadId: string, name: string, email: string, phone: string, company: string;
+  let address: string, city: string, selectedState: string | null, zip: string;
+  let proposalNumberHtml: string, selectedServices: any[];
+  let clientId: string, customerAdmin: string;
+  let serviceNumber: string, serviceName: string, deadline: string;
+  let prepaymentNumber = '';
 
-  // Click the hyperlink of the lead name in the table to open the lead modal
-  const leadLink = page.locator(`a:has-text("${leadName}")`);
-  await expect(leadLink).toBeVisible({ timeout: 10000 });
-  await leadLink.click();
-  // Wait for popup/modal to appear
-  const leadModal = page.locator('#lead-modal');
-  await expect(leadModal).toBeVisible({ timeout: 10000 });
+  await test.step('1. Login', async () => {
+    await login(page, APP_BASE_URL!, E2E_USER!, E2E_PASS!);
+  });
 
-  // Wait for modal content to be populated before clicking Convert to Customer
-  const modalHeading = leadModal.locator('h4, h3, h2, h1').first();
-  await expect(modalHeading).toBeVisible({ timeout: 10000 });
+  await test.step('2. Create Lead', async () => {
+    const leadHelper = new LeadHelper(page, APP_BASE_URL!);
+    const lead: LeadDetails = await leadHelper.createLead();
+    ({ leadId, name, email, phone, company, address, city, state: selectedState, zip } = lead);
 
-  // Convert lead to customer and assign admin via helper
-  const customerHelper = new CustomerHelper(page, APP_BASE_URL!);
-  const { clientId, customerAdmin } = await customerHelper.convertToCustomerAndAssignAdmin(leadName, leadModal);
+    try {
+      writeAbisExecutionDetails({
+        lead: { leadId, name, email, phone, address, city, state: selectedState, zip }
+      });
+    } catch (err) {
+      CommonHelper.logger('ERROR', 'Error saving lead details to JSON:', err);
+    }
+  });
 
-  // Save customer details to JSON immediately
-  try {
-    const detailsJson = readAbisExecutionDetails();
-    detailsJson.company = {
-      clientId,
-      company,
-      customerAdmin: customerAdmin?.trim() || ''
-    };
-    writeAbisExecutionDetails(detailsJson);
-  } catch (err) {
-    CommonHelper.logger('ERROR', 'Error saving customer details to JSON:', err);
-  }
+  await test.step('3. Create and Accept Proposal', async () => {
+    const proposalHelper = new ProposalHelper(page);
+    const proposal: ProposalDetails = await proposalHelper.createAndProcessProposal('#lead-modal');
+    ({ proposalNumber: proposalNumberHtml, services: selectedServices } = proposal);
 
-  // --- Add service for customer after admin assignment ---
-  const serviceHelper = new ServiceHelper(page);
-  const { serviceNumber, serviceName, deadline } = await serviceHelper.createService(proposalNumberHtml || '');
+    try {
+      const detailsJson = readAbisExecutionDetails();
+      detailsJson.proposal = { proposalNumber: proposalNumberHtml || '', services: selectedServices };
+      writeAbisExecutionDetails(detailsJson);
+    } catch (err) {
+      CommonHelper.logger('ERROR', 'Error saving proposal details to JSON:', err);
+    }
+  });
 
-  // Save service details to JSON immediately
-  try {
-    const detailsJson = readAbisExecutionDetails();
-    detailsJson.service = {
-      serviceNumber,
-      serviceName,
-      deadline
-    };
-    writeAbisExecutionDetails(detailsJson);
-  } catch (err) {
-    CommonHelper.logger('ERROR', 'Error updating service details in abis_execution_details.json:', err);
-  }
+  await test.step('4. Convert Lead to Customer', async () => {
+    await page.goto(`${APP_BASE_URL}/leads`);
+    
+    let searchInput = page.locator('table thead input[type="search"]').first();
+    if (await searchInput.count() === 0) searchInput = page.locator('table input[type="search"]').first();
+    if (await searchInput.count() === 0) searchInput = page.locator('input[placeholder*="search" i]').first();
+    
+    await expect(searchInput).toBeVisible({ timeout: 10000 });
+    await searchInput.fill(name);
+    await page.waitForTimeout(2000);
 
-  // --- Workflow: Create new task after service creation ---
-  const taskHelper = new TaskHelper(page);
-  await taskHelper.createPaymentCollectionTask();
+    const leadLink = page.locator(`a:has-text("${name}")`);
+    await expect(leadLink).toBeVisible({ timeout: 10000 });
+    await leadLink.click();
+    
+    const leadModal = page.locator('#lead-modal');
+    await expect(leadModal).toBeVisible({ timeout: 10000 });
+    await expect(leadModal.locator('h4, h3, h2, h1').first()).toBeVisible({ timeout: 10000 });
 
-    // --- Additional Workflow: Go to Customer and Pre Payment tab ---
-    // Click "Go to Customer" button
+    const customerHelper = new CustomerHelper(page, APP_BASE_URL!);
+    ({ clientId, customerAdmin } = await customerHelper.convertToCustomerAndAssignAdmin(name, leadModal));
+
+    try {
+      const detailsJson = readAbisExecutionDetails();
+      detailsJson.company = { clientId, company, customerAdmin: customerAdmin?.trim() || '' };
+      writeAbisExecutionDetails(detailsJson);
+    } catch (err) {
+      CommonHelper.logger('ERROR', 'Error saving customer details to JSON:', err);
+    }
+  });
+
+  await test.step('5. Create Service', async () => {
+    const serviceHelper = new ServiceHelper(page);
+    ({ serviceNumber, serviceName, deadline } = await serviceHelper.createService(proposalNumberHtml || ''));
+
+    try {
+      const detailsJson = readAbisExecutionDetails();
+      detailsJson.service = { serviceNumber, serviceName, deadline };
+      writeAbisExecutionDetails(detailsJson);
+    } catch (err) {
+      CommonHelper.logger('ERROR', 'Error saving service details to JSON:', err);
+    }
+  });
+
+  await test.step('6. Create Task', async () => {
+    const taskHelper = new TaskHelper(page);
+    await taskHelper.createPaymentCollectionTask();
+  });
+
+  await test.step('7. Create and Approve PrePayment', async () => {
     const goToCustomerLink = page.locator('a', { hasText: 'Go to Customer' });
     await expect(goToCustomerLink).toBeVisible({ timeout: 10000 });
     await goToCustomerLink.click();
-  CommonHelper.logger('STEP', 'Clicked Go to Customer link');
 
-    // Click "Pre Payment" tab from left side
     const prePaymentTab = page.getByRole('link', { name: 'Pre Payment', exact: true });
     await expect(prePaymentTab).toBeVisible({ timeout: 10000 });
     await prePaymentTab.click();
-  CommonHelper.logger('STEP', 'Clicked Pre Payment tab');
 
-  // Click "New Pre Payment" link
-  const newPrePaymentLink = page.getByRole('link', { name: /New Pre Payment/i });
-  await expect(newPrePaymentLink).toBeVisible({ timeout: 10000 });
-  await newPrePaymentLink.click();
-  CommonHelper.logger('STEP', 'Clicked New Pre Payment link');
+    const newPrePaymentLink = page.getByRole('link', { name: /New Pre Payment/i });
+    await expect(newPrePaymentLink).toBeVisible({ timeout: 10000 });
+    await newPrePaymentLink.click();
 
-  // Wait for New Pre Payment modal/form to appear
-  const newPrePaymentHeading = page.getByRole('heading', { name: /New Pre Payment/i });
-  await expect(newPrePaymentHeading).toBeVisible({ timeout: 15000 });
+    const newPrePaymentHeading = page.getByRole('heading', { name: /New Pre Payment/i });
+    await expect(newPrePaymentHeading).toBeVisible({ timeout: 15000 });
 
   // Select service from dropdown with AJAX search
   const serviceDropdownButton = page.locator('button[data-id="project_id"]');
@@ -255,136 +230,97 @@ test('ABIS Sanity @sanity', async ({ page }) => {
   await page.waitForTimeout(2000);
 
   // Extract prepayment number from the page after navigation completes
-  let prepaymentNumber = '';
-  try {
-    const prepaymentMatch = (await page.content()).match(/PP-\d+/);
-    if (prepaymentMatch) {
-      prepaymentNumber = prepaymentMatch[0];
-      CommonHelper.logger('INFO', 'Captured Prepayment number:', prepaymentNumber);
-    } else {
-      // Try alternative: look in URL or page heading
-      const urlMatch = page.url().match(/credit_notes\/(\d+)/);
-      if (urlMatch) {
-        const heading = await page.locator('h4, h3, h2').first().textContent().catch(() => '');
-        const headingMatch = heading?.match(/PP-\d+/);
-        if (headingMatch) {
-          prepaymentNumber = headingMatch[0];
-          CommonHelper.logger('INFO', 'Captured Prepayment number from heading:', prepaymentNumber);
+    try {
+      const prepaymentMatch = (await page.content()).match(/PP-\d+/);
+      if (prepaymentMatch) {
+        prepaymentNumber = prepaymentMatch[0];
+      } else {
+        const urlMatch = page.url().match(/credit_notes\/(\d+)/);
+        if (urlMatch) {
+          const heading = await page.locator('h4, h3, h2').first().textContent().catch(() => '');
+          const headingMatch = heading?.match(/PP-\d+/);
+          if (headingMatch) prepaymentNumber = headingMatch[0];
         }
       }
+    } catch (err) {
+      CommonHelper.logger('WARN', 'Could not extract prepayment number:', err);
     }
-  } catch (err) {
-    CommonHelper.logger('WARN', 'Could not extract prepayment number:', err);
-  }
 
-  // If we're not on the detail page, navigate to the list and find the latest
-  if (!page.url().includes('credit_notes/view')) {
-    CommonHelper.logger('INFO', 'Not on detail page, navigating to Pre Payment list');
-    await page.goto(`${APP_BASE_URL}/credit_notes`);
+    // Navigate to prepayment detail page and approve
+    if (!page.url().includes('credit_notes/view')) {
+      await page.goto(`${APP_BASE_URL}/credit_notes`);
+      await page.waitForLoadState('networkidle');
+      await page.waitForTimeout(1000);
+    }
+
+    if (prepaymentNumber) {
+      const prepaymentLink = page.locator(`a:has-text("${prepaymentNumber}")`).first();
+      await expect(prepaymentLink).toBeVisible({ timeout: 10000 });
+      await prepaymentLink.click();
+    } else {
+      const firstPrepayment = page.locator('table tbody tr').first().locator('a').first();
+      await firstPrepayment.click();
+    }
+    
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(1000);
-    CommonHelper.logger('STEP', 'Navigated to Pre Payment list page');
-  }
 
-  // Find and click the prepayment we just created
-  if (prepaymentNumber) {
-    const prepaymentLink = page.locator(`a:has-text("${prepaymentNumber}")`).first();
-    await expect(prepaymentLink).toBeVisible({ timeout: 10000 });
-    await prepaymentLink.click();
-    await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(1000);
-    CommonHelper.logger('STEP', `Opened Pre Payment detail page: ${prepaymentNumber}`);
-  } else {
-    // Fallback: click the first prepayment in the list
-    const firstPrepayment = page.locator('table tbody tr').first().locator('a').first();
-    await firstPrepayment.click();
-    await page.waitForLoadState('networkidle');
-    CommonHelper.logger('WARN', 'Prepayment number not found, clicked first prepayment in list');
-  }
-
-  // Now click "More" dropdown on the detail page
-  let moreDropdownClicked = false;
-  for (let i = 0; i < 5; i++) {
-    try {
-      const moreDropdowns = await page.locator('button, a', { hasText: 'More' }).elementHandles();
-      for (const handle of moreDropdowns) {
-        const text = (await handle.textContent())?.trim() || '';
-        if (text === 'More') {
-          const box = await handle.boundingBox();
-          if (box && box.width > 0 && box.height > 0) {
-            await handle.click();
-            moreDropdownClicked = true;
-            CommonHelper.logger('STEP', 'Clicked More dropdown on Pre Payment detail page');
-            break;
+    // Click More dropdown and Approve
+    let moreDropdownClicked = false;
+    for (let i = 0; i < 5; i++) {
+      try {
+        const moreDropdowns = await page.locator('button, a', { hasText: 'More' }).elementHandles();
+        for (const handle of moreDropdowns) {
+          const text = (await handle.textContent())?.trim() || '';
+          if (text === 'More') {
+            const box = await handle.boundingBox();
+            if (box && box.width > 0 && box.height > 0) {
+              await handle.click();
+              moreDropdownClicked = true;
+              break;
+            }
           }
         }
+        if (moreDropdownClicked) break;
+        await page.waitForTimeout(1000);
+      } catch (err) {
+        await page.waitForTimeout(1000);
       }
-      if (moreDropdownClicked) break;
-      await page.waitForTimeout(1000);
-    } catch (err) {
-      CommonHelper.logger('WARN', `Error clicking More dropdown (attempt ${i + 1}):`, String(err));
-      await page.waitForTimeout(1000);
     }
-  }
-  
-  if (!moreDropdownClicked) {
-    await CommonHelper.safeScreenshot(page, { path: 'more-dropdown-not-found.png', fullPage: true });
-    CommonHelper.logger('WARN', 'Could not find or click More dropdown after Pre Payment save.');
-    throw new Error('More dropdown not found or not clickable after retries.');
-  }
 
-  // Click "Approve Payment" and handle alert popup
-  const approvePaymentBtn = page.locator('a, button', { hasText: 'Approve Payment' });
-  await expect(approvePaymentBtn).toBeVisible({ timeout: 10000 });
-  
-  // Setup dialog handler before clicking Approve Payment
-  let alertHandled = false;
-  page.once('dialog', async dialog => {
-    CommonHelper.logger('STEP', `Alert popup appeared after Approve Payment: ${dialog.message()}`);
-    await dialog.accept();
-    alertHandled = true;
+    if (!moreDropdownClicked) throw new Error('More dropdown not found or not clickable');
+
+    const approvePaymentBtn = page.locator('a, button', { hasText: 'Approve Payment' });
+    await expect(approvePaymentBtn).toBeVisible({ timeout: 10000 });
+
+    page.once('dialog', async dialog => await dialog.accept());
+    await approvePaymentBtn.click();
+    await page.waitForTimeout(2000);
+    await page.waitForLoadState('networkidle');
+
+    try {
+      const detailsJson = readAbisExecutionDetails();
+      if (!detailsJson.service) detailsJson.service = {};
+      detailsJson.service.prepaymentNumber = prepaymentNumber;
+      writeAbisExecutionDetails(detailsJson);
+    } catch (err) {
+      CommonHelper.logger('ERROR', 'Error saving prepayment to JSON:', err);
+    }
   });
-  
-  await approvePaymentBtn.click();
-  CommonHelper.logger('STEP', 'Clicked Approve Payment');
-  
-  // Wait for alert to appear and be handled
-  await page.waitForTimeout(2000);
-  if (!alertHandled) {
-    CommonHelper.logger('WARN', 'No alert popup appeared or was handled after Approve Payment');
-  }
-  
-  // Wait for page to update after approval
-  await page.waitForLoadState('networkidle');
-  await page.waitForTimeout(1000);
-  
-  // Save prepayment number to JSON immediately
-  try {
-    const detailsJson = readAbisExecutionDetails();
-    if (!detailsJson.service) detailsJson.service = {};
-    detailsJson.service.prepaymentNumber = prepaymentNumber;
-    writeAbisExecutionDetails(detailsJson);
-    CommonHelper.logger('INFO', 'Prepayment number saved to JSON:', prepaymentNumber);
-  } catch (err) {
-    CommonHelper.logger('ERROR', 'Error updating Prepayment number in abis_execution_details.json:', err);
-  }
 
-  // Create Proforma and mark as accepted
-  const proformaDetailsJson = readAbisExecutionDetails();
-  const clientIdRaw = proformaDetailsJson.company?.clientId || '';
-  const proformaClientId = clientIdRaw.replace(/^#/, ''); // Remove leading '#' if present
-  if (!proformaClientId) {
-    throw new Error('clientId not found in abis_execution_details.json');
-  }
-  if (!APP_BASE_URL) {
-    throw new Error('APP_BASE_URL is not defined');
-  }
+  await test.step('8. Create and Accept Proforma', async () => {
+    const proformaDetailsJson = readAbisExecutionDetails();
+    const clientIdRaw = proformaDetailsJson.company?.clientId || '';
+    const proformaClientId = clientIdRaw.replace(/^#/, '');
+    if (!proformaClientId) throw new Error('clientId not found in abis_execution_details.json');
 
-  const proformaHelper = new ProformaHelper(page);
-  await proformaHelper.createAndAcceptProforma(proformaClientId, APP_BASE_URL);
+    const proformaHelper = new ProformaHelper(page);
+    await proformaHelper.createAndAcceptProforma(proformaClientId, APP_BASE_URL!);
+  });
 
-  // Convert to Invoice and complete payment
-  const invoiceHelper = new InvoiceHelper(page);
-  await invoiceHelper.processInvoiceWorkflow();
+  await test.step('9. Convert to Invoice and Record Payment', async () => {
+    const invoiceHelper = new InvoiceHelper(page);
+    await invoiceHelper.processInvoiceWorkflow();
+  });
 });
 
