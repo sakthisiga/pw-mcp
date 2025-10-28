@@ -105,7 +105,6 @@ test('ABIS Sanity @sanity', async ({ page }) => {
       deadline
     };
     writeAbisExecutionDetails(detailsJson);
-    CommonHelper.logger('INFO', 'Service details updated in JSON:', detailsJson.service);
   } catch (err) {
     CommonHelper.logger('ERROR', 'Error updating service details in abis_execution_details.json:', err);
   }
