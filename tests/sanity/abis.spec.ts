@@ -12,6 +12,9 @@ import { test, expect } from '@playwright/test';
 import dotenv from 'dotenv';
 
 const faker = require('faker');
+// Set faker locale to India for Indian names and addresses
+faker.locale = 'en_IND';
+
 dotenv.config();
 
 const APP_BASE_URL = process.env.APP_BASE_URL;
