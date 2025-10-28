@@ -46,7 +46,6 @@ test('ABIS Sanity @sanity', async ({ page }) => {
       }
     };
     writeAbisExecutionDetails(detailsJson);
-    CommonHelper.logger('INFO', 'Lead details saved to JSON:', detailsJson.lead);
   } catch (err) {
     CommonHelper.logger('ERROR', 'Error saving lead details to JSON:', err);
   }
@@ -64,7 +63,6 @@ test('ABIS Sanity @sanity', async ({ page }) => {
       services: selectedServices
     };
     writeAbisExecutionDetails(detailsJson);
-    CommonHelper.logger('INFO', 'Proposal details saved to JSON:', detailsJson.proposal);
   } catch (err) {
     CommonHelper.logger('ERROR', 'Error saving proposal details to JSON:', err);
   }
@@ -110,7 +108,6 @@ test('ABIS Sanity @sanity', async ({ page }) => {
       customerAdmin: customerAdmin?.trim() || ''
     };
     writeAbisExecutionDetails(detailsJson);
-    CommonHelper.logger('INFO', 'Customer details saved to JSON:', detailsJson.company);
   } catch (err) {
     CommonHelper.logger('ERROR', 'Error saving customer details to JSON:', err);
   }
@@ -128,7 +125,6 @@ test('ABIS Sanity @sanity', async ({ page }) => {
       deadline
     };
     writeAbisExecutionDetails(detailsJson);
-    CommonHelper.logger('INFO', 'Service details saved to JSON:', detailsJson.service);
   } catch (err) {
     CommonHelper.logger('ERROR', 'Error updating service details in abis_execution_details.json:', err);
   }
