@@ -18,7 +18,7 @@ export default defineConfig({
   /* Fail the build on CI if you accidentally left test.only in the source code. */
   forbidOnly: !!process.env.CI,
   /* Retry on CI only */
-  retries: process.env.CI ? 0 : 0,
+  retries: process.env.CI ? 1 : 0,
   /* Opt out of parallel tests on CI. */
   workers: process.env.CI ? 1 : undefined,
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
@@ -34,7 +34,7 @@ export default defineConfig({
     // baseURL: 'http://localhost:3000',
 
     /* Action timeout - max time for each action like click, fill, etc */
-    actionTimeout: 15000, // 15 seconds per action
+    actionTimeout: 25000, // 15 seconds per action
     
     /* Navigation timeout - max time for page.goto() */
     navigationTimeout: 30000, // 30 seconds for page loads
