@@ -31,10 +31,43 @@ test('ABIS Sanity @sanity', async ({ page }) => {
   const lead: LeadDetails = await leadHelper.createLead();
   const { leadId, name, email, phone, company, address, city, state: selectedState, zip } = lead;
 
+  // Save lead details to JSON immediately
+  try {
+    const detailsJson = {
+      lead: {
+        leadId,
+        name,
+        email,
+        phone,
+        address,
+        city,
+        state: selectedState,
+        zip
+      }
+    };
+    writeAbisExecutionDetails(detailsJson);
+    CommonHelper.logger('INFO', 'Lead details saved to JSON:', detailsJson.lead);
+  } catch (err) {
+    CommonHelper.logger('ERROR', 'Error saving lead details to JSON:', err);
+  }
+
   // Create proposal via helper
   const proposalHelper = new ProposalHelper(page);
   const proposal: ProposalDetails = await proposalHelper.createAndProcessProposal('#lead-modal');
   const { proposalNumber: proposalNumberHtml, services: selectedServices } = proposal;
+
+  // Save proposal details to JSON immediately
+  try {
+    const detailsJson = readAbisExecutionDetails();
+    detailsJson.proposal = {
+      proposalNumber: proposalNumberHtml || '',
+      services: selectedServices
+    };
+    writeAbisExecutionDetails(detailsJson);
+    CommonHelper.logger('INFO', 'Proposal details saved to JSON:', detailsJson.proposal);
+  } catch (err) {
+    CommonHelper.logger('ERROR', 'Error saving proposal details to JSON:', err);
+  }
 
   // Go to /leads page
   const leadName = name;
@@ -68,35 +101,25 @@ test('ABIS Sanity @sanity', async ({ page }) => {
   const customerHelper = new CustomerHelper(page, APP_BASE_URL!);
   const { clientId, customerAdmin } = await customerHelper.convertToCustomerAndAssignAdmin(leadName, leadModal);
 
-  // Update abis_execution_details.json in nested format (now includes customerAdmin)
-  let detailsJson = {
-    lead: {
-      leadId,
-      name,
-      email,
-      phone,
-      address,
-      city,
-      state: selectedState,
-      zip
-    },
-    proposal: {
-      proposalNumber: proposalNumberHtml || '',
-      services: selectedServices
-    },
-    company: {
+  // Save customer details to JSON immediately
+  try {
+    const detailsJson = readAbisExecutionDetails();
+    detailsJson.company = {
       clientId,
       company,
       customerAdmin: customerAdmin?.trim() || ''
-    }
-  };
-  writeAbisExecutionDetails(detailsJson);
+    };
+    writeAbisExecutionDetails(detailsJson);
+    CommonHelper.logger('INFO', 'Customer details saved to JSON:', detailsJson.company);
+  } catch (err) {
+    CommonHelper.logger('ERROR', 'Error saving customer details to JSON:', err);
+  }
 
   // --- Add service for customer after admin assignment ---
   const serviceHelper = new ServiceHelper(page);
   const { serviceNumber, serviceName, deadline } = await serviceHelper.createService(proposalNumberHtml || '');
 
-  // Update abis_execution_details.json
+  // Save service details to JSON immediately
   try {
     const detailsJson = readAbisExecutionDetails();
     detailsJson.service = {
@@ -105,6 +128,7 @@ test('ABIS Sanity @sanity', async ({ page }) => {
       deadline
     };
     writeAbisExecutionDetails(detailsJson);
+    CommonHelper.logger('INFO', 'Service details saved to JSON:', detailsJson.service);
   } catch (err) {
     CommonHelper.logger('ERROR', 'Error updating service details in abis_execution_details.json:', err);
   }
@@ -338,13 +362,13 @@ test('ABIS Sanity @sanity', async ({ page }) => {
   await page.waitForLoadState('networkidle');
   await page.waitForTimeout(1000);
   
-  // Update abis_execution_details.json with prepayment number
+  // Save prepayment number to JSON immediately
   try {
     const detailsJson = readAbisExecutionDetails();
     if (!detailsJson.service) detailsJson.service = {};
     detailsJson.service.prepaymentNumber = prepaymentNumber;
     writeAbisExecutionDetails(detailsJson);
-    CommonHelper.logger('INFO', 'Prepayment number updated in abis_execution_details.json:', prepaymentNumber);
+    CommonHelper.logger('INFO', 'Prepayment number saved to JSON:', prepaymentNumber);
   } catch (err) {
     CommonHelper.logger('ERROR', 'Error updating Prepayment number in abis_execution_details.json:', err);
   }
