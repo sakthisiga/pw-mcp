@@ -18,13 +18,21 @@ export class ServiceHelper {
    * @returns ServiceDetails with serviceNumber and deadline
    */
   async createService(proposalNumber: string): Promise<ServiceDetails> {
-    await this.navigateToServicesTab();
-    await this.clickNewServiceButton();
-    await this.selectAcceptedProposal(proposalNumber);
-    await this.selectProposalService();
-    await this.setDeadlineIfEmpty();
-    await this.saveService();
-    return await this.captureServiceDetails();
+    CommonHelper.logger('INFO', '→ ENTER: createService()');
+    try {
+      await this.navigateToServicesTab();
+      await this.clickNewServiceButton();
+      await this.selectAcceptedProposal(proposalNumber);
+      await this.selectProposalService();
+      await this.setDeadlineIfEmpty();
+      await this.saveService();
+      const result = await this.captureServiceDetails();
+      CommonHelper.logger('INFO', '← EXIT: createService() - Success');
+      return result;
+    } catch (error) {
+      CommonHelper.logger('ERROR', `← EXIT: createService() - Failed: ${error}`);
+      throw error;
+    }
   }
 
   private async navigateToServicesTab(): Promise<void> {

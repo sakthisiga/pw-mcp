@@ -6,9 +6,9 @@ export class CommonHelper {
     const timestamp = now.toISOString();
     if (type === 'STEP') {
       if (args.length === 1) {
-        console.log(`[STEP] [${timestamp}] --- ${args[0]} ---`);
+        console.log(`[STEP] [${timestamp}] ${args[0]}`);
       } else {
-        console.log(`[STEP] [${timestamp}] --- ${args.join(' ')} ---`);
+        console.log(`[STEP] [${timestamp}] ${args.join(' ')}`);
       }
     } else if (type === 'INFO') {
       console.log(`[INFO] [${timestamp}]`, ...args);

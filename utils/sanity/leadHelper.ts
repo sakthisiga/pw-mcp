@@ -32,9 +32,11 @@ export class LeadHelper {
   // Creates a lead and waits for the lead modal (#lead-modal) to be visible
   // Returns the generated lead details used later in the test flow
   async createLead(): Promise<LeadDetails> {
-    const { page, baseUrl } = this;
+    CommonHelper.logger('INFO', '→ ENTER: createLead()');
+    try {
+      const { page, baseUrl } = this;
 
-    CommonHelper.logger('STEP', 'Navigating to leads page');
+      CommonHelper.logger('STEP', 'Navigating to leads page');
     await page.goto(`${baseUrl}/leads`);
 
     CommonHelper.logger('STEP', 'Looking for New Lead link');
@@ -164,6 +166,7 @@ export class LeadHelper {
       leadId = 'N/A';
     }
 
+    CommonHelper.logger('INFO', '← EXIT: createLead() - Success');
     return {
       leadId,
       name,
@@ -175,5 +178,9 @@ export class LeadHelper {
       state: selectedState,
       zip,
     };
+    } catch (error) {
+      CommonHelper.logger('ERROR', `← EXIT: createLead() - Failed: ${error}`);
+      throw error;
+    }
   }
 }
