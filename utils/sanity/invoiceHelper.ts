@@ -61,12 +61,19 @@ export class InvoiceHelper {
    * ```
    */
   async processInvoiceWorkflow(): Promise<void> {
-    await this.convertProformaToInvoice();
-    await this.captureInvoiceDetails();
-    await this.applyCredits();
-    await this.recordPayment();
-    await this.approvePayment();
-    await this.navigateBackToInvoice();
+    CommonHelper.logger('INFO', '→ ENTER: processInvoiceWorkflow()');
+    try {
+      await this.convertProformaToInvoice();
+      await this.captureInvoiceDetails();
+      await this.applyCredits();
+      await this.recordPayment();
+      await this.approvePayment();
+      await this.navigateBackToInvoice();
+      CommonHelper.logger('INFO', '← EXIT: processInvoiceWorkflow() - Success');
+    } catch (error) {
+      CommonHelper.logger('ERROR', `← EXIT: processInvoiceWorkflow() - Failed: ${error}`);
+      throw error;
+    }
   }
 
   /**
@@ -253,8 +260,6 @@ export class InvoiceHelper {
       detailsJson.invoice.salesAgent = salesAgent;
       detailsJson.invoice.total = invoiceTotal;
       writeAbisExecutionDetails(detailsJson);
-
-      CommonHelper.logger('INFO', `Invoice Details - Number: ${invoiceNumber}, Date: ${invoiceDate}, Due: ${dueDate}, Agent: ${salesAgent}, Total: ${invoiceTotal}`);
 
       if (!invoiceNumber || !invoiceDate || !dueDate || !salesAgent || !invoiceTotal) {
         CommonHelper.logger('WARN', `Invoice details missing`);

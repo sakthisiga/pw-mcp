@@ -23,15 +23,22 @@ export class ProformaHelper {
    * @param appBaseUrl - Base URL of the application
    */
   async createAndAcceptProforma(clientId: string, appBaseUrl: string): Promise<void> {
-    await this.navigateToProformaTab(clientId, appBaseUrl);
-    await this.clickCreateNewProforma();
-    await this.selectBillingCompany();
-    await this.addServicesFromModal();
-    await this.makeFieldsEditable();
-    await this.clickTickMark();
-    await this.saveProforma();
-    await this.markAsAccepted();
-    await this.captureProformaDetails();
+    CommonHelper.logger('INFO', '→ ENTER: createAndAcceptProforma()');
+    try {
+      await this.navigateToProformaTab(clientId, appBaseUrl);
+      await this.clickCreateNewProforma();
+      await this.selectBillingCompany();
+      await this.addServicesFromModal();
+      await this.makeFieldsEditable();
+      await this.clickTickMark();
+      await this.saveProforma();
+      await this.markAsAccepted();
+      await this.captureProformaDetails();
+      CommonHelper.logger('INFO', '← EXIT: createAndAcceptProforma() - Success');
+    } catch (error) {
+      CommonHelper.logger('ERROR', `← EXIT: createAndAcceptProforma() - Failed: ${error}`);
+      throw error;
+    }
   }
 
   /**

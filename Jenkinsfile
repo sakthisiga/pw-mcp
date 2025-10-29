@@ -344,23 +344,21 @@ pipeline {
                 )
                 
                 // Cleanup Docker resources after execution
-                echo 'Cleaning up Docker resources after execution...'
+                echo 'Stopping and removing all containers (images will NOT be removed)...'
                 sh '''
-                    # Stop and remove all containers
+                    # Stop all running containers
                     docker ps -q | xargs -r docker stop || true
+
+                    # Remove all containers (including stopped)
                     docker ps -aq | xargs -r docker rm || true
-                    
-                    # Remove dangling images
-                    docker images -f "dangling=true" -q | xargs -r docker rmi || true
-                    
-                    # Clean up build cache and volumes
-                    docker system prune -af --volumes || true
-                    
-                    # Show disk usage after cleanup
-                    echo "Docker disk usage after cleanup:"
+
+                    # Show remaining images and disk usage
+                    echo "Remaining Docker images:"
+                    docker images || true
+                    echo "Docker disk usage after container cleanup:"
                     docker system df || true
-                    
-                    echo "Docker cleanup completed successfully"
+
+                    echo "Container cleanup completed successfully"
                 '''
             }
         }
