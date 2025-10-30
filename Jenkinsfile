@@ -176,7 +176,7 @@ pipeline {
                     def paymentStatus = executionDetails.payment?.paymentId ? '✅ PASSED' : '❌ FAILED or NOT CREATED'
                     
                     // Extract details for each workflow step
-                    def leadDetails = executionDetails.lead?.leadId ? "Lead ID: ${executionDetails.lead.leadId} | ${executionDetails.lead.name} (${executionDetails.lead.email})" : (executionDetails.lead?.name ? "${executionDetails.lead.name} (${executionDetails.lead.email})" : 'N/A')
+                    def leadDetails = executionDetails.lead?.leadId ? "${executionDetails.lead.leadId} | ${executionDetails.lead.name} (${executionDetails.lead.email})" : (executionDetails.lead?.name ? "${executionDetails.lead.name} (${executionDetails.lead.email})" : 'N/A')
                     def proposalDetails = executionDetails.proposal?.proposalNumber ?: 'N/A'
                     def customerDetails = executionDetails.company?.clientId ? "${executionDetails.company.clientId} - ${executionDetails.company.company}" : 'N/A'
                     def serviceDetails = executionDetails.service?.serviceNumber ? "${executionDetails.service.serviceNumber} - ${executionDetails.service.serviceName ?: 'N/A'}" : 'N/A'
