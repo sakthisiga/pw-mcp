@@ -18,23 +18,62 @@ export class CustomerHelper {
   /**
    * Main method: Convert lead to customer and assign admin
    * @param leadName - Name of the lead to convert
-   * @param leadModal - Lead modal locator
    * @returns Object containing clientId and customerAdmin
    */
   async convertToCustomerAndAssignAdmin(
-    leadName: string,
-    leadModal: any
+    leadName: string
   ): Promise<{ clientId: string; customerAdmin: string }> {
-    // Step 1: Convert lead to customer
+    // Step 1: Search for lead and open lead modal
+    const leadModal = await this.searchAndOpenLead(leadName);
+
+    // Step 2: Convert lead to customer
     const clientId = await this.convertLeadToCustomer(leadName, leadModal);
 
-    // Step 2: Navigate to Profile tab
+    // Step 3: Navigate to Profile tab
     await this.navigateToProfileTab();
 
-    // Step 3: Assign customer admin
+    // Step 4: Assign customer admin
     const customerAdmin = await this.assignCustomerAdmin();
 
     return { clientId, customerAdmin };
+  }
+
+  /**
+   * Search for lead by name and open the lead modal
+   * @param leadName - Name of the lead to search for
+   * @returns Lead modal locator
+   */
+  async searchAndOpenLead(leadName: string): Promise<any> {
+    CommonHelper.logger('STEP', `Navigating to leads page to search for: ${leadName}`);
+    await this.page.goto(`${this.APP_BASE_URL}/leads`);
+    
+    // Try multiple strategies to find the search input
+    let searchInput = this.page.locator('table thead input[type="search"]').first();
+    if (await searchInput.count() === 0) {
+      searchInput = this.page.locator('table input[type="search"]').first();
+    }
+    if (await searchInput.count() === 0) {
+      searchInput = this.page.locator('input[placeholder*="search" i]').first();
+    }
+    
+    await expect(searchInput).toBeVisible({ timeout: 10000 });
+    CommonHelper.logger('STEP', 'Found search input, filling with lead name');
+    await searchInput.fill(leadName);
+    await this.page.waitForTimeout(2000); // Wait for table to filter
+
+    // Click the lead link to open modal
+    const leadLink = this.page.locator(`a:has-text("${leadName}")`);
+    await expect(leadLink).toBeVisible({ timeout: 10000 });
+    CommonHelper.logger('STEP', `Found lead link, clicking to open modal`);
+    await leadLink.click();
+    
+    // Wait for lead modal to appear
+    const leadModal = this.page.locator('#lead-modal');
+    await expect(leadModal).toBeVisible({ timeout: 10000 });
+    await expect(leadModal.locator('h4, h3, h2, h1').first()).toBeVisible({ timeout: 10000 });
+    CommonHelper.logger('STEP', 'Lead modal opened successfully');
+    
+    return leadModal;
   }
 
   /**

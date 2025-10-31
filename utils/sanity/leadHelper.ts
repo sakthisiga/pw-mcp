@@ -69,22 +69,18 @@ export class LeadHelper {
 
     // Additional fields
     await CommonHelper.resilientFill(form.locator('input#company'), company, page, 'lead-company');
-    CommonHelper.logger('INFO', 'Lead Company:', company);
 
     await form.locator('input#address').fill(address);
     await expect(form.locator('input#address')).toHaveValue(address);
-    CommonHelper.logger('INFO', 'Lead Address:', address);
 
     await form.locator('input#city').fill(city);
     await expect(form.locator('input#city')).toHaveValue(city);
-    CommonHelper.logger('INFO', 'Lead City:', city);
 
     // State
     const stateDropdown = form.locator('select#state');
     await expect(stateDropdown).toBeVisible();
     await stateDropdown.selectOption({ label: 'Tamil Nadu' });
     const selectedState = await stateDropdown.locator('option:checked').textContent();
-    CommonHelper.logger('INFO', 'Lead State:', selectedState);
 
     // Robust Zip
     let zipInput = form.locator('input#zipcode');
@@ -98,7 +94,6 @@ export class LeadHelper {
       await page.waitForTimeout(500);
       const zipValue = await zipInput.inputValue();
       if (zipValue === zip) {
-        CommonHelper.logger('INFO', 'Lead Zip code:', zip);
       } else {
         CommonHelper.logger('WARN', `Zip code field did not update as expected. Expected: ${zip}, Actual: ${zipValue}`);
       }
