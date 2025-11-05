@@ -348,7 +348,6 @@ export class ProformaHelper {
 
       if (!proformaDate || !expiryDate || !total) {
         CommonHelper.logger('WARN', `Proforma details missing: date='${proformaDate}', expiry='${expiryDate}', total='${total}'`);
-        await this.page.screenshot({ path: 'proforma-details-missing.png', fullPage: true });
       }
     } catch (err) {
       CommonHelper.logger('ERROR', 'Error updating Proforma details in JSON:', err);
