@@ -10,7 +10,8 @@ faker.locale = 'en_IND';
 
 export interface LeadDetails {
   leadId: string;
-  name: string;
+  name: string; 
+  position:string;
   email: string;
   phone: string;
   company: string;
@@ -53,7 +54,8 @@ export class LeadHelper {
 
     // Generate details
     const name = faker.name.findName();
-    const email = faker.internet.email();
+    const position=faker.name.jobTitle();
+     const email = faker.internet.email();
     const phone = faker.phone.phoneNumber('999#######');
     const company = faker.company.companyName();
     const address = faker.address.streetAddress();
@@ -64,6 +66,7 @@ export class LeadHelper {
 
     // Fill core fields
     await CommonHelper.resilientFill(form.locator('input#name'), name, page, 'lead-name');
+    await CommonHelper.resilientFill(form.locator('input#title'),position,page,'lead-position');
     await CommonHelper.resilientFill(form.locator('input#email'), email, page, 'lead-email');
     await CommonHelper.resilientFill(form.locator('input#phonenumber'), phone, page, 'lead-phone');
 
@@ -164,7 +167,8 @@ export class LeadHelper {
     CommonHelper.logger('INFO', '← EXIT: createLead() - Success');
     return {
       leadId,
-      name,
+       name,
+      position,
       email,
       phone,
       company,
