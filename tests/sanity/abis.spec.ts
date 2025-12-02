@@ -28,7 +28,7 @@ test('ABIS Sanity @sanity', async ({ page }) => {
   CommonHelper.logger('INFO', `Using APP URL: ${APP_BASE_URL}`);
   CommonHelper.logger('INFO', `Using USERNAME: ${E2E_USER}`);
   
-  let leadId: string, name: string, email: string, phone: string, company: string;
+  let leadId: string, name: string, position: string, email: string, phone: string, company: string;
   let address: string, city: string, selectedState: string | null, zip: string;
   let proposalNumberHtml: string, selectedServices: any[];
   let clientId: string, customerAdmin: string;
@@ -42,11 +42,11 @@ test('ABIS Sanity @sanity', async ({ page }) => {
   await test.step('2. Create Lead', async () => {
     const leadHelper = new LeadHelper(page, APP_BASE_URL!);
     const lead: LeadDetails = await leadHelper.createLead();
-    ({ leadId, name, email, phone, company, address, city, state: selectedState, zip } = lead);
+    ({ leadId, name, position, email, phone, company, address, city, state: selectedState, zip } = lead);
 
     try {
       writeAbisExecutionDetails({
-        lead: { leadId, name, email, phone, address, city, state: selectedState, zip }
+        lead: { leadId, name, position, email, phone, address, city, state: selectedState, zip }
       });
     } catch (err) {
       CommonHelper.logger('ERROR', 'Error saving lead details to JSON:', err);
