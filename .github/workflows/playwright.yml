@@ -23,6 +23,10 @@ on:
 env:
   E2E_USER: sakthivel@roonaa.com
 
+permissions:
+  contents: write
+  pages: write
+
 jobs:
   test:
     timeout-minutes: 60
