@@ -23,6 +23,10 @@ on:
 env:
   E2E_USER: sakthivel@roonaa.com
 
+permissions:
+  contents: write
+  pages: write
+
 jobs:
   test:
     timeout-minutes: 60
@@ -98,3 +102,11 @@ jobs:
         name: abis-execution-details-${{ inputs.environment || 'DEV' }}
         path: abis_execution_details.json
         retention-days: 30
+    
+    - name: Deploy Report to GitHub Pages
+      uses: peaceiris/actions-gh-pages@v4
+      if: ${{ !cancelled() }}
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: playwright-report/
+        destination_dir: ${{ github.run_number }}
