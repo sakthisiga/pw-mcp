@@ -4,29 +4,97 @@ on:
     branches: [ gha-enable ]
   workflow_dispatch:
     inputs:
+      environment:
+        description: 'Environment to run tests against'
+        required: true
+        default: 'DEV'
+        type: choice
+        options:
+          - DEV
+          - FTRACK
+          - LONGHAUL
+          - UAT
       tagName:
         description: 'Tag to filter tests (e.g., @sanity)'
         required: false
         default: ''
         type: string
+
+env:
+  E2E_USER: sakthivel@roonaa.com
+
 jobs:
   test:
     timeout-minutes: 60
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v5
+    
+    - name: Set Environment Variables
+      id: set-env
+      run: |
+        ENVIRONMENT="${{ inputs.environment || 'DEV' }}"
+        echo "Selected environment: $ENVIRONMENT"
+        
+        case $ENVIRONMENT in
+          DEV)
+            echo "APP_BASE_URL=http://dev-abis.roonaa.in:8553/admin" >> $GITHUB_ENV
+            echo "E2E_PASS=${{ secrets.ABIS_DEV_PASS }}" >> $GITHUB_ENV
+            ;;
+          FTRACK)
+            echo "APP_BASE_URL=http://ftrack-abis.roonaa.in:8663/admin" >> $GITHUB_ENV
+            echo "E2E_PASS=${{ secrets.ABIS_FTRACK_PASS }}" >> $GITHUB_ENV
+            ;;
+          LONGHAUL)
+            echo "APP_BASE_URL=http://longhaul-abis.roonaa.in:8563/admin" >> $GITHUB_ENV
+            echo "E2E_PASS=${{ secrets.ABIS_LONGHAUL_PASS }}" >> $GITHUB_ENV
+            ;;
+          UAT)
+            echo "APP_BASE_URL=https://uat-abis.roonaa.in:8773/admin" >> $GITHUB_ENV
+            echo "E2E_PASS=${{ secrets.ABIS_UAT_PASS }}" >> $GITHUB_ENV
+            ;;
+        esac
+        
+        echo "ENVIRONMENT=$ENVIRONMENT" >> $GITHUB_ENV
+    
+    - name: Create .env file
+      run: |
+        echo "APP_BASE_URL=${{ env.APP_BASE_URL }}" >> .env
+        echo "E2E_USER=${{ env.E2E_USER }}" >> .env
+        echo "E2E_PASS=${{ env.E2E_PASS }}" >> .env
+        echo "Environment file created for: ${{ env.ENVIRONMENT }}"
+    
     - uses: actions/setup-node@v5
       with:
         node-version: lts/*
+    
     - name: Install dependencies
       run: npm ci
+    
     - name: Install Playwright Browsers
       run: npx playwright install --with-deps
+    
     - name: Run Playwright tests
-      run: npx playwright test ${{ inputs.tagName && format('--grep "{0}"', inputs.tagName) || '' }}
-    - uses: actions/upload-artifact@v4
+      env:
+        CI: 1
+        FORCE_COLOR: 1
+        APP_BASE_URL: ${{ env.APP_BASE_URL }}
+        E2E_USER: ${{ env.E2E_USER }}
+        E2E_PASS: ${{ env.E2E_PASS }}
+      run: npx playwright test ${{ inputs.tagName && format('--grep "{0}"', inputs.tagName) || '' }} --retries=1
+    
+    - name: Upload Playwright Report
+      uses: actions/upload-artifact@v4
       if: ${{ !cancelled() }}
       with:
-        name: playwright-report
+        name: playwright-report-${{ inputs.environment || 'DEV' }}
         path: playwright-report/
+        retention-days: 30
+    
+    - name: Upload Execution Details
+      uses: actions/upload-artifact@v4
+      if: ${{ !cancelled() && hashFiles('abis_execution_details.json') != '' }}
+      with:
+        name: abis-execution-details-${{ inputs.environment || 'DEV' }}
+        path: abis_execution_details.json
         retention-days: 30
