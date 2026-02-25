@@ -75,7 +75,7 @@ export class ProposalHelper {
 
       // Wait for proposal form
       await expect(this.page.getByRole('heading', { name: 'New Proposal' })).toBeVisible({ timeout: 10000 });
-      await this.page.waitForLoadState('networkidle');
+      await this.page.waitForTimeout(2000); // Give page time to fully render
       CommonHelper.logger('INFO', '← EXIT: navigateToProposalsTab() - Success');
     } catch (error) {
       CommonHelper.logger('ERROR', `← EXIT: navigateToProposalsTab() - Failed: ${error}`);
@@ -286,6 +286,16 @@ export class ProposalHelper {
 
       await this.page.waitForTimeout(3000);
       CommonHelper.logger('STEP', 'Proposal saved, verifying status...');
+
+      // After save, we're redirected to the list page. Navigate back to the proposal detail page
+      // Look for the first proposal link in the table and click it to view details
+      const firstProposalLink = this.page.locator('table tbody tr').first().locator('a[href*="proposals"]').first();
+      if (await firstProposalLink.count() > 0) {
+        await firstProposalLink.click();
+        CommonHelper.logger('STEP', 'Navigated to proposal detail page');
+        await this.page.waitForTimeout(2000);
+      }
+
       CommonHelper.logger('INFO', '← EXIT: saveProposal() - Success');
     } catch (error) {
       CommonHelper.logger('ERROR', `← EXIT: saveProposal() - Failed: ${error}`);
@@ -360,11 +370,7 @@ export class ProposalHelper {
       await expect(actionableRows[declineRowIndex].declineBtn).toBeEnabled();
       await actionableRows[declineRowIndex].declineBtn.click();
       CommonHelper.logger('INFO', `Declined service in row ${declineRowIndex}`);
-      await this.page.waitForTimeout(1000);
-
-      // Wait for page to settle
-      await this.page.waitForLoadState('networkidle');
-      await this.page.waitForTimeout(2000);
+      await this.page.waitForTimeout(3000); // Wait for actions to complete
 
       CommonHelper.logger('STEP', 'Clicked Accept, waiting for final state...');
       CommonHelper.logger('INFO', '← EXIT: acceptAndDeclineServices() - Success');

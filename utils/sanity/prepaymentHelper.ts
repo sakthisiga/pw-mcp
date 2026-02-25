@@ -222,10 +222,7 @@ export class PrePaymentHelper {
       CommonHelper.logger('WARN', 'Did not navigate to credit_notes page as expected');
     });
     await this.page.waitForLoadState('domcontentloaded');
-    await this.page.waitForLoadState('networkidle').catch(() => {
-      CommonHelper.logger('WARN', 'networkidle timeout, proceeding anyway');
-    });
-    await this.page.waitForTimeout(2000);
+    await this.page.waitForTimeout(3000); // Wait for page to settle
     
     CommonHelper.logger('STEP', 'Pre-payment saved and page loaded');
   }
@@ -274,8 +271,7 @@ export class PrePaymentHelper {
     // Navigate to prepayment detail page
     if (!this.page.url().includes('credit_notes/view')) {
       await this.page.goto(`${this.APP_BASE_URL}/credit_notes`);
-      await this.page.waitForLoadState('networkidle');
-      await this.page.waitForTimeout(1000);
+      await this.page.waitForTimeout(2000); // Wait for page to load
     }
 
     // Click on prepayment link
@@ -289,9 +285,8 @@ export class PrePaymentHelper {
       await firstPrepayment.click();
       CommonHelper.logger('STEP', 'Clicked first prepayment in list');
     }
-    
-    await this.page.waitForLoadState('networkidle');
-    await this.page.waitForTimeout(1000);
+
+    await this.page.waitForTimeout(2000); // Wait for page to load
 
     // Click More dropdown and Approve
     await this.clickMoreDropdown();
@@ -352,10 +347,9 @@ export class PrePaymentHelper {
     
     await approvePaymentBtn.click();
     CommonHelper.logger('STEP', 'Clicked Approve Payment button');
-    
-    await this.page.waitForTimeout(2000);
-    await this.page.waitForLoadState('networkidle');
-    
+
+    await this.page.waitForTimeout(3000); // Wait for approval to complete
+
     CommonHelper.logger('STEP', 'Payment approval completed');
   }
 }

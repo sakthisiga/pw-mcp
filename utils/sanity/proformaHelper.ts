@@ -205,8 +205,7 @@ export class ProformaHelper {
       } catch (err) {
         if (String(err).includes('Execution context was destroyed')) {
           CommonHelper.logger('WARN', 'Execution context destroyed, retrying More dropdown...');
-          await this.page.waitForLoadState('networkidle');
-          await this.page.waitForTimeout(1500);
+          await this.page.waitForTimeout(2000); // Wait for page to stabilize
           continue;
         } else {
           throw err;

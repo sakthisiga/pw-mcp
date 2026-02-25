@@ -100,8 +100,7 @@ export class InvoiceHelper {
   private async convertProformaToInvoice(): Promise<void> {
     try {
       // Wait for page to be stable after Proforma save
-      await this.page.waitForLoadState('networkidle');
-      await this.page.waitForTimeout(1000);
+      await this.page.waitForTimeout(2000);
 
       // Click "Convert to Invoice" dropdown button
       const convertDropdownBtn = this.page.locator('button', { hasText: /Convert to Invoice/i });
@@ -533,7 +532,7 @@ export class InvoiceHelper {
     
     await expect(paymentForInvoiceLink.first()).toBeVisible({ timeout: 10000 });
     await paymentForInvoiceLink.first().click();
-    await this.page.waitForLoadState('networkidle');
+    await this.page.waitForTimeout(2000); // Wait for navigation to complete
     CommonHelper.logger('STEP', 'Navigated back to Invoice via Payment for Invoice link');
   }
 

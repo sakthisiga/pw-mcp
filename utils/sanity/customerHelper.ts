@@ -87,8 +87,7 @@ export class CustomerHelper {
     CommonHelper.logger('STEP', `--- Clicked Convert to customer for lead: ${leadName} ---`);
 
     // Wait for the page to fully load
-    await this.page.waitForLoadState('networkidle');
-    await this.page.waitForTimeout(1000);
+    await this.page.waitForTimeout(3000); // Give page time to render customer form
 
     // Fill PAN and GST fields
     await this.fillPANandGST();
