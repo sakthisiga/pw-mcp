@@ -107,8 +107,9 @@ export class InvoiceHelper {
       let convertDropdownClicked = false;
       
       for (let i = 0; i < 5; i++) {
-        if (await convertDropdownBtn.count() && await convertDropdownBtn.isVisible()) {
-          await convertDropdownBtn.click();
+        const count = await convertDropdownBtn.count();
+        if (count > 0 && await convertDropdownBtn.first().isVisible()) {
+          await convertDropdownBtn.first().click();
           convertDropdownClicked = true;
           CommonHelper.logger('STEP', 'Clicked Convert to Invoice dropdown button');
           break;
@@ -126,6 +127,27 @@ export class InvoiceHelper {
       await expect(convertOptionBtn).toBeVisible({ timeout: 10000 });
       await convertOptionBtn.click();
       CommonHelper.logger('STEP', 'Clicked Convert option in dropdown');
+
+      // Check if a modal appears and click the final Convert to Invoice or Yes button
+      try {
+        const swalYesBtn = this.page.locator('.swal2-confirm', { hasText: /^Yes!$/i });
+        const oldModalBtn = this.page.locator('.modal-content button[type="submit"], #convert_to_invoice button[type="submit"]').filter({ hasText: /Convert to Invoice/i });
+        
+        await Promise.race([
+          swalYesBtn.waitFor({ state: 'visible', timeout: 5000 }),
+          oldModalBtn.waitFor({ state: 'visible', timeout: 5000 })
+        ]);
+
+        if (await swalYesBtn.isVisible()) {
+          await swalYesBtn.click();
+          CommonHelper.logger('STEP', 'Clicked Yes! button in SweetAlert confirmation');
+        } else if (await oldModalBtn.isVisible()) {
+          await oldModalBtn.click();
+          CommonHelper.logger('STEP', 'Clicked final Convert to Invoice button in modal');
+        }
+      } catch (e) {
+        CommonHelper.logger('INFO', 'No confirmation modal found, proceeding to wait for navigation');
+      }
 
       // Wait for navigation or success indicator
       await Promise.race([
